@@ -8,7 +8,8 @@
     "dev:ts": "tsc -b -w",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sync-photos": "bun run sync-photos.ts"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",

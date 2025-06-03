@@ -7,18 +7,19 @@ import {
 } from "./PickerService";
 import { getDirectoryHandle } from "./FileService";
 
-interface DownloadableItem {
-  filename: string;
-  downloadUrl: string;
-  mimeType: string;
-  id: string;
+interface SessionData {
+  oauthToken: string;
+  sessionId: string;
+  mediaItems: any[];
+  selectedDirectoryPath: string;
+  timestamp: string;
 }
 
 export default function SyncButton() {
   const { oauthToken } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [progress, setProgress] = useState("");
-  const [downloadLinks, setDownloadLinks] = useState<DownloadableItem[]>([]);
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
 
   const handleSync = async () => {
     console.log("🚀 Starting sync process...");
@@ -30,8 +31,8 @@ export default function SyncButton() {
     }
 
     setIsSyncing(true);
-    setDownloadLinks([]);
-    setProgress("Please select a folder to compare against...");
+    setSessionData(null);
+    setProgress("Please select a folder to sync to...");
     console.log("📁 Requesting directory selection from user...");
 
     try {
@@ -87,20 +88,6 @@ export default function SyncButton() {
         items: mediaItems,
       });
 
-      // Let's examine the structure more closely
-      if (mediaItems && mediaItems.length > 0) {
-        console.log(
-          "🔍 Detailed structure of first media item:",
-          JSON.stringify(mediaItems[0], null, 2)
-        );
-        if (mediaItems[0].mediaFile) {
-          console.log(
-            "📁 MediaFile object:",
-            JSON.stringify(mediaItems[0].mediaFile, null, 2)
-          );
-        }
-      }
-
       if (!mediaItems || mediaItems.length === 0) {
         console.log("❌ No media items were selected");
         setProgress("No media items were selected.");
@@ -108,90 +95,21 @@ export default function SyncButton() {
         return;
       }
 
-      // Step 6: Analyze what's already in the directory
-      setProgress("Analyzing existing files in directory...");
-      console.log("🔍 Analyzing existing files in selected directory...");
+      // Step 6: Create session data for Bun script
+      const sessionDataToExport: SessionData = {
+        oauthToken,
+        sessionId,
+        mediaItems,
+        selectedDirectoryPath: dir.name, // This is just the name, script will ask for full path
+        timestamp: new Date().toISOString(),
+      };
 
-      const existingFiles = new Set<string>();
-      for await (const [name, handle] of dir.entries()) {
-        if (handle.kind === "file") {
-          existingFiles.add(name);
-          console.log("📄 Found existing file:", name);
-        }
-      }
-      console.log("📊 Total existing files:", existingFiles.size);
+      setSessionData(sessionDataToExport);
+      console.log("✅ Session data prepared for export");
 
-      // Step 7: Create download links for new files
-      const newItems: DownloadableItem[] = [];
-      let existing = 0;
-      let failed = 0;
-
-      console.log("🔄 Processing items for download links...");
-      for (let i = 0; i < mediaItems.length; i++) {
-        const item = mediaItems[i];
-        const { mediaFile, id } = item;
-
-        console.log(`\n📋 Processing item ${i + 1}/${mediaItems.length}:`, {
-          filename: mediaFile?.filename,
-          id,
-          hasBaseUrl: !!mediaFile?.baseUrl,
-          mimeType: mediaFile?.mimeType,
-        });
-
-        if (!mediaFile?.filename || !mediaFile?.baseUrl) {
-          console.warn("⚠️ Skipping item missing filename or baseUrl:", item);
-          failed++;
-          continue;
-        }
-
-        const { filename, baseUrl, mimeType } = mediaFile;
-
-        // Check if file already exists
-        const fileExists = existingFiles.has(filename);
-        console.log(`🔍 File exists check for "${filename}":`, fileExists);
-
-        if (fileExists) {
-          console.log(`⏭️ Skipping "${filename}" - already exists`);
-          existing++;
-          continue;
-        }
-
-        // Create authenticated download URL
-        const downloadUrl = `${baseUrl}=d`;
-        console.log(`🔗 Created download link for "${filename}"`);
-
-        newItems.push({
-          filename,
-          downloadUrl,
-          mimeType: mimeType || "application/octet-stream",
-          id,
-        });
-      }
-
-      // Final summary
-      console.log("\n📊 Analysis Summary:", {
-        totalSelected: mediaItems.length,
-        newFiles: newItems.length,
-        existing,
-        failed,
-        existingFilesInDirectory: existingFiles.size,
-      });
-
-      setDownloadLinks(newItems);
-
-      const message =
-        newItems.length > 0
-          ? `Found ${newItems.length} new files to download${
-              existing > 0 ? ` (${existing} already exist)` : ""
-            }${failed > 0 ? ` (${failed} failed to process)` : ""}.`
-          : existing > 0
-          ? `All ${existing} selected files already exist in the folder.`
-          : failed > 0
-          ? `${failed} files failed to process.`
-          : "No files available for download.";
-
-      console.log("🎉 Final result:", message);
-      setProgress(message);
+      setProgress(
+        `Ready to download ${mediaItems.length} files! Click "Download Session Data" and run the Bun script.`
+      );
     } catch (error) {
       console.error("💥 Sync error:", error);
       const errorMessage =
@@ -205,46 +123,21 @@ export default function SyncButton() {
     }
   };
 
-  const handleDownload = async (item: DownloadableItem) => {
-    console.log(`⬇️ Starting download for "${item.filename}"...`);
+  const downloadSessionData = () => {
+    if (!sessionData) return;
 
-    try {
-      // Create an authenticated fetch request
-      const response = await fetch(item.downloadUrl, {
-        headers: {
-          Authorization: `Bearer ${oauthToken}`,
-        },
-      });
+    const dataStr = JSON.stringify(sessionData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `google-photos-session-${Date.now()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
-      if (!response.ok) {
-        throw new Error(`Failed to download: ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
-      console.log(`✅ Downloaded "${item.filename}":`, {
-        size: blob.size,
-        type: blob.type,
-      });
-
-      // Create a download link and trigger it
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = item.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      console.log(`💾 Triggered download for "${item.filename}"`);
-    } catch (error) {
-      console.error(`❌ Failed to download "${item.filename}":`, error);
-      alert(
-        `Failed to download ${item.filename}: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
-    }
+    console.log("📄 Session data downloaded");
   };
 
   return (
@@ -283,66 +176,63 @@ export default function SyncButton() {
         </div>
       )}
 
-      {downloadLinks.length > 0 && (
-        <div style={{ width: "100%", marginTop: "16px" }}>
-          <h3 style={{ textAlign: "center", marginBottom: "12px" }}>
-            📥 New Files to Download ({downloadLinks.length})
-          </h3>
-          <div
+      {sessionData && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "12px",
+            padding: "16px",
+            border: "2px solid #4CAF50",
+            borderRadius: "8px",
+            backgroundColor: "#f9fff9",
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
+              ✅ Ready for Bulk Download!
+            </div>
+            <div style={{ fontSize: "14px", color: "#666" }}>
+              Selected {sessionData.mediaItems.length} files from Google Photos
+            </div>
+          </div>
+
+          <button
+            onClick={downloadSessionData}
             style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-              maxHeight: "300px",
-              overflowY: "auto",
-              border: "1px solid #ddd",
-              borderRadius: "8px",
-              padding: "12px",
+              padding: "8px 16px",
+              backgroundColor: "#4CAF50",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              fontWeight: "bold",
             }}
           >
-            {downloadLinks.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px",
-                  border: "1px solid #eee",
-                  borderRadius: "4px",
-                  fontSize: "14px",
-                }}
-              >
-                <div style={{ flex: 1, textAlign: "left" }}>
-                  <div style={{ fontWeight: "bold" }}>{item.filename}</div>
-                  <div style={{ color: "#666", fontSize: "12px" }}>
-                    {item.mimeType}
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDownload(item)}
-                  style={{
-                    marginLeft: "12px",
-                    padding: "4px 12px",
-                    fontSize: "12px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Download
-                </button>
-              </div>
-            ))}
-          </div>
+            📄 Download Session Data
+          </button>
+
           <div
             style={{
-              textAlign: "center",
               fontSize: "12px",
               color: "#666",
-              marginTop: "8px",
+              textAlign: "center",
+              lineHeight: "1.4",
             }}
           >
-            Click individual download buttons to save files to your default
-            downloads folder
+            Download the session file, then run:
+            <br />
+            <code
+              style={{
+                backgroundColor: "#f5f5f5",
+                padding: "2px 4px",
+                borderRadius: "3px",
+                fontFamily: "monospace",
+              }}
+            >
+              bun run sync-photos.ts [session-file.json] [target-directory]
+            </code>
           </div>
         </div>
       )}
