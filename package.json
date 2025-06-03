@@ -5,18 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:ts": "tsc -b -w",
     "build": "tsc -b && vite build",
+    "dev:ts": "tsc -b -w",
     "lint": "eslint .",
     "preview": "vite preview",
     "sync-photos": "bun run sync-photos.ts"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",
-    "@types/wicg-file-system-access": "^2023.10.6",
-    "gapi-script": "^1.2.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "@types/wicg-file-system-access": "^2023.10.6",
+    "gapi-script": "^1.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.0",

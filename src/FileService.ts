@@ -11,8 +11,14 @@ export async function fileExists(
   try {
     await dir.getFileHandle(fileName, { create: false });
     return true;
-  } catch (e: any) {
-    if (e.name === "NotFoundError") return false;
+  } catch (e: unknown) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "name" in e &&
+      (e as { name?: string }).name === "NotFoundError"
+    )
+      return false;
     throw e;
   }
 }
