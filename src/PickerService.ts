@@ -1,43 +1,114 @@
 import type { MediaItem } from "./types";
 
-export async function launchPicker({ oauthToken }: { oauthToken: string }) {
-  if (!oauthToken) return null;
-
-  const createSessionResponse = await fetch(
-    "https://photospicker.googleapis.com/v1/sessions",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${oauthToken}`,
-      },
-      body: JSON.stringify({
-        albumId: import.meta.env.VITE_GOOGLE_ALBUM_ID,
-        view: { includeMediaTypes: ["PHOTO", "VIDEO"] },
-      }),
-    }
-  );
-  if (!createSessionResponse.ok)
+export async function createPickerSession({
+  oauthToken,
+}: {
+  oauthToken: string;
+}) {
+  if (!oauthToken) {
     throw new Error(
-      `Failed to create picker session: ${createSessionResponse.statusText}`
+      "OAuth token of type 'string' for createPickerSession could not be found"
     );
-  const session = await createSessionResponse.json();
-  const pickerUri = session.sessionUri;
-  const sessionId = session.sessionId;
-  window.open(pickerUri, "_blank", "width=600,height=600");
-  // In a real app, you'd want to listen for the session completion
-  // For now, just return sessionId for next step
-  return sessionId;
+  }
+
+  const res = await fetch("https://photospicker.googleapis.com/v1/sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${oauthToken}`,
+    },
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Failed to create picker session: ${res.status} ${res.statusText}`
+    );
+  }
+
+  const data = await res.json();
+
+  if (!data.pickerUri || !data.id) {
+    throw new Error("Picker session response missing pickerUri or session id");
+  }
+
+  return {
+    pickerUri: data.pickerUri,
+    sessionId: data.id,
+  };
 }
 
-export async function fetchMediaItems({
+export async function pollSession({
   oauthToken,
   sessionId,
 }: {
   oauthToken: string;
   sessionId: string;
 }) {
-  const mediaItemsResponse = await fetch(
+  if (!oauthToken || !sessionId) {
+    throw new Error(
+      `Missing oauthToken or sessionId for pollSession - oauthToken: ${!!oauthToken}, sessionId: ${!!sessionId}`
+    );
+  }
+
+  let pollInterval = 2000; // Start with 2 seconds
+  let totalTimeout = 300000; // 5 minutes total timeout
+  let elapsed = 0;
+
+  while (elapsed < totalTimeout) {
+    const res = await fetch(
+      `https://photospicker.googleapis.com/v1/sessions/${sessionId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${oauthToken}`,
+        },
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(
+        `Failed to poll session '${sessionId}': ${res.status} ${res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+
+    // Check if user has finished selecting media
+    if (data.mediaItemsSet === true) {
+      return true;
+    }
+
+    // Update polling configuration if provided by the API
+    if (data.pollingConfig) {
+      if (data.pollingConfig.pollInterval) {
+        pollInterval = data.pollingConfig.pollInterval;
+      }
+      if (data.pollingConfig.timeoutIn) {
+        totalTimeout = data.pollingConfig.timeoutIn;
+      }
+    }
+
+    // Wait before next poll
+    await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    elapsed += pollInterval;
+  }
+
+  return false; // Timed out
+}
+
+export async function fetchPickedMediaItems({
+  oauthToken,
+  sessionId,
+}: {
+  oauthToken: string;
+  sessionId: string;
+}) {
+  if (!oauthToken || !sessionId) {
+    throw new Error(
+      `Missing oauthToken or sessionId for fetchPickedMediaItems - oauthToken: ${!!oauthToken}, sessionId: ${!!sessionId}`
+    );
+  }
+
+  const res = await fetch(
     `https://photospicker.googleapis.com/v1/mediaItems?sessionId=${sessionId}`,
     {
       headers: {
@@ -45,10 +116,13 @@ export async function fetchMediaItems({
       },
     }
   );
-  if (!mediaItemsResponse.ok)
+
+  if (!res.ok) {
     throw new Error(
-      `Failed to fetch media items: ${mediaItemsResponse.statusText}`
+      `Failed to fetch picked media items for session '${sessionId}': ${res.status} ${res.statusText}`
     );
-  const mediaItemsJson = await mediaItemsResponse.json();
-  return mediaItemsJson.mediaItems as MediaItem[];
+  }
+
+  const data = await res.json();
+  return (data.mediaItems || []) as MediaItem[];
 }

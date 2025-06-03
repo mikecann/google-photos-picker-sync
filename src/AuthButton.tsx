@@ -4,7 +4,7 @@ import { useAuth } from "./GoogleAuthProvider";
 export default function AuthButton() {
   const { oauthToken, setOauthToken } = useAuth();
   const login = useGoogleLogin({
-    scope: "https://www.googleapis.com/auth/photos.picker.readonly",
+    scope: "https://www.googleapis.com/auth/photospicker.mediaitems.readonly",
     onSuccess: (tokenResponse) => {
       setOauthToken(tokenResponse.access_token);
     },

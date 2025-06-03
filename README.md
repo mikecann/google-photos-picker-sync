@@ -1,54 +1,78 @@
-# React + TypeScript + Vite
+# Install 
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Below are the concise steps needed to obtain the three environment variables:
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```env
+VITE_GOOGLE_CLIENT_ID=YOUR_CLIENT_ID_HERE  
+VITE_GOOGLE_API_KEY=YOUR_API_KEY_HERE  
+VITE_GOOGLE_ALBUM_ID=YOUR_ALBUM_ID_HERE  
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Each step includes links and citations to official documentation.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+## 1. Create (or select) a Google Cloud Project
+
+1. Navigate to the Google Cloud Console: [https://console.cloud.google.com/](https://console.cloud.google.com/)
+
+2. If you don’t already have a project, click the project dropdown (top-left) → **New Project** name doest matter
+
+
+## 2. Enable the Google Photos Picker API
+
+1. While in your new (or chosen) project, go to **APIs & Services → Library**.
+2. Search for **“Google Photos Picker API”** and click on it.
+3. Click **Enable**.
+
+
+## 3. Create OAuth 2.0 Client ID 
+
+1. Go to **APIs & Services → Credentials** in the Cloud Console.
+
+2. Click **Create Credentials → OAuth client ID**.
+
+3. Under **Application type**, select **Web application**.
+
+4. In **Authorized JavaScript origins**, add your local dev URL (e.g., `http://localhost:3000`).
+
+5. Click **Create**.
+
+6. Copy the displayed **Client ID** (looks like `1234567890-abcde.apps.googleusercontent.com`) and set it as:
+
+   ```text
+   VITE_GOOGLE_CLIENT_ID=1234567890-abcde.apps.googleusercontent.com
+   ```
+---
+
+## 4. Create an API Key (for VITE\_GOOGLE\_API\_KEY)
+
+1. Still under **APIs & Services → Credentials**, click **Create Credentials → API key**.
+
+2. Google will generate a new API key (a long alphanumeric string, e.g., `AIzaSyD…`).
+
+3. Copy that key and set it as:
+
+   ```text
+   VITE_GOOGLE_API_KEY=AIzaSyD…  
+   ```
+
+---
+
+## 5. Obtain the Google Photos Album ID (for VITE\_GOOGLE\_ALBUM\_ID)
+
+### Option A: Use the Web URL (if album is shared)
+
+1. In **Google Photos**, open the album you want to sync.
+
+2. Click **Share** → **Create link** (if not already shared).
+
+3. Copy the resulting link, which looks like:
+
+   ```
+   https://photos.app.goo.gl/AbCdEFGhIjkLmNoP?p=AbCdEFGhIjkLmNoP
+   ```
+
+4. The part after the last slash (before `?`) is often a Firebase short link, not the API “albumId.” Instead, do the steps in **Option B** below—relying on the Photos Library listing to retrieve the album’s real ID.
+
+
