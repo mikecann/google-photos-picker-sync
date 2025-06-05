@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "./GoogleAuthProvider";
 import {
   createPickerSession,
@@ -15,11 +15,51 @@ interface SessionData {
   timestamp: string;
 }
 
+interface DownloadProgress {
+  total: number;
+  downloaded: number;
+  skipped: number;
+  failed: number;
+  currentFile: string | null;
+  isComplete: boolean;
+  errors: string[];
+}
+
 export default function SyncButton() {
   const { oauthToken } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [progress, setProgress] = useState("");
-  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] =
+    useState<DownloadProgress | null>(null);
+  const [progressId, setProgressId] = useState<string | null>(null);
+
+  // Poll for download progress
+  useEffect(() => {
+    if (!progressId || !isDownloading) return;
+
+    const pollProgress = async () => {
+      try {
+        const response = await fetch(`/api/progress?id=${progressId}`);
+        if (response.ok) {
+          const progress = await response.json();
+          setDownloadProgress(progress);
+
+          if (progress.isComplete) {
+            setIsDownloading(false);
+            setProgress(
+              `Download complete! ${progress.downloaded} files downloaded, ${progress.skipped} skipped, ${progress.failed} failed.`
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch progress:", error);
+      }
+    };
+
+    const interval = setInterval(pollProgress, 1000);
+    return () => clearInterval(interval);
+  }, [progressId, isDownloading]);
 
   const handleSync = async () => {
     console.log("🚀 Starting sync process...");
@@ -31,7 +71,8 @@ export default function SyncButton() {
     }
 
     setIsSyncing(true);
-    setSessionData(null);
+    setDownloadProgress(null);
+    setProgressId(null);
     setProgress("Please select a folder to sync to...");
     console.log("📁 Requesting directory selection from user...");
 
@@ -39,6 +80,25 @@ export default function SyncButton() {
       // Step 1: Get directory handle while we still have user gesture
       const dir = await getDirectoryHandle();
       console.log("✅ Directory selected:", dir.name);
+
+      // Get the full directory path from the handle
+      let directoryPath = dir.name;
+
+      // Try to get a more complete path if possible
+      // Note: For security reasons, browsers don't give full paths
+      // But we can ask the user for it
+      const userPath = prompt(
+        `Please enter the full path to the selected directory "${dir.name}":\n\nExample: C:\\Users\\YourName\\Pictures\\GooglePhotos`,
+        directoryPath
+      );
+
+      if (!userPath) {
+        setProgress("Directory path required to continue.");
+        setIsSyncing(false);
+        return;
+      }
+
+      directoryPath = userPath;
 
       // Step 2: Create a picker session
       setProgress("Creating picker session...");
@@ -95,21 +155,34 @@ export default function SyncButton() {
         return;
       }
 
-      // Step 6: Create session data for Bun script
-      const sessionDataToExport: SessionData = {
+      // Step 6: Send session data to server and start downloads
+      setProgress("Starting downloads...");
+      const sessionData: SessionData = {
         oauthToken,
         sessionId,
         mediaItems,
-        selectedDirectoryPath: dir.name, // This is just the name, script will ask for full path
+        selectedDirectoryPath: directoryPath,
         timestamp: new Date().toISOString(),
       };
 
-      setSessionData(sessionDataToExport);
-      console.log("✅ Session data prepared for export");
+      const response = await fetch("/api/download", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(sessionData),
+      });
 
-      setProgress(
-        `Ready to download ${mediaItems.length} files! Click "Download Session Data" and run the Bun script.`
-      );
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to start download");
+      }
+
+      const result = await response.json();
+      setProgressId(result.progressId);
+      setIsDownloading(true);
+      setProgress("Downloads started! Check progress below...");
+      console.log("✅ Downloads started with progress ID:", result.progressId);
     } catch (error) {
       console.error("💥 Sync error:", error);
       const errorMessage =
@@ -121,23 +194,6 @@ export default function SyncButton() {
       console.log("🏁 Sync process completed");
       setIsSyncing(false);
     }
-  };
-
-  const downloadSessionData = () => {
-    if (!sessionData) return;
-
-    const dataStr = JSON.stringify(sessionData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `google-photos-session-${Date.now()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    console.log("📄 Session data downloaded");
   };
 
   return (
@@ -152,14 +208,21 @@ export default function SyncButton() {
     >
       <button
         onClick={handleSync}
-        disabled={isSyncing || !oauthToken}
+        disabled={isSyncing || !oauthToken || isDownloading}
         style={{
           minWidth: "120px",
-          opacity: isSyncing || !oauthToken ? 0.6 : 1,
-          cursor: isSyncing || !oauthToken ? "not-allowed" : "pointer",
+          opacity: isSyncing || !oauthToken || isDownloading ? 0.6 : 1,
+          cursor:
+            isSyncing || !oauthToken || isDownloading
+              ? "not-allowed"
+              : "pointer",
         }}
       >
-        {isSyncing ? "Syncing..." : "Sync Photos"}
+        {isSyncing
+          ? "Syncing..."
+          : isDownloading
+          ? "Downloading..."
+          : "Sync Photos"}
       </button>
 
       {progress && (
@@ -176,64 +239,89 @@ export default function SyncButton() {
         </div>
       )}
 
-      {sessionData && (
+      {downloadProgress && (
         <div
           style={{
             display: "flex",
             flexDirection: "column",
-            alignItems: "center",
             gap: "12px",
             padding: "16px",
             border: "2px solid #4CAF50",
             borderRadius: "8px",
             backgroundColor: "#f9fff9",
+            minWidth: "400px",
           }}
         >
           <div style={{ textAlign: "center" }}>
             <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
-              ✅ Ready for Bulk Download!
+              📥 Download Progress
             </div>
             <div style={{ fontSize: "14px", color: "#666" }}>
-              Selected {sessionData.mediaItems.length} files from Google Photos
+              {downloadProgress.downloaded + downloadProgress.skipped} of{" "}
+              {downloadProgress.total} files processed
             </div>
           </div>
-
-          <button
-            onClick={downloadSessionData}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#4CAF50",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
-          >
-            📄 Download Session Data
-          </button>
 
           <div
             style={{
-              fontSize: "12px",
-              color: "#666",
-              textAlign: "center",
-              lineHeight: "1.4",
+              width: "100%",
+              backgroundColor: "#e0e0e0",
+              borderRadius: "4px",
+              height: "20px",
             }}
           >
-            Download the session file, then run:
-            <br />
-            <code
+            <div
               style={{
-                backgroundColor: "#f5f5f5",
-                padding: "2px 4px",
-                borderRadius: "3px",
-                fontFamily: "monospace",
+                width: `${
+                  ((downloadProgress.downloaded + downloadProgress.skipped) /
+                    downloadProgress.total) *
+                  100
+                }%`,
+                backgroundColor: "#4CAF50",
+                height: "100%",
+                borderRadius: "4px",
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+
+          <div style={{ fontSize: "12px", color: "#666", textAlign: "center" }}>
+            ✅ Downloaded: {downloadProgress.downloaded} • ⏭️ Skipped:{" "}
+            {downloadProgress.skipped} • ❌ Failed: {downloadProgress.failed}
+          </div>
+
+          {downloadProgress.currentFile && (
+            <div
+              style={{ fontSize: "12px", color: "#666", textAlign: "center" }}
+            >
+              Currently downloading: {downloadProgress.currentFile}
+            </div>
+          )}
+
+          {downloadProgress.isComplete && (
+            <div
+              style={{
+                textAlign: "center",
+                color: "#4CAF50",
+                fontWeight: "bold",
               }}
             >
-              bun run sync-photos.ts [session-file.json] [target-directory]
-            </code>
-          </div>
+              🎉 All downloads completed!
+            </div>
+          )}
+
+          {downloadProgress.errors.length > 0 && (
+            <details style={{ fontSize: "12px" }}>
+              <summary style={{ cursor: "pointer", color: "#d32f2f" }}>
+                ⚠️ Show {downloadProgress.errors.length} error(s)
+              </summary>
+              <div style={{ marginTop: "8px", color: "#d32f2f" }}>
+                {downloadProgress.errors.map((error, index) => (
+                  <div key={index}>• {error}</div>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
       )}
     </div>
