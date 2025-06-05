@@ -47,17 +47,25 @@ function AppContent() {
   const scrollToStep = (stepNumber: number) => {
     if (!scrollContainerRef.current) return;
 
-    const containerWidth = scrollContainerRef.current.clientWidth;
-    const maxStepWidth = Math.min(350, (containerWidth - 100) / 1.5); // Responsive step width
-    const gap = 24; // Gap between steps
+    const container = scrollContainerRef.current;
+    const containerWidth = container.clientWidth;
 
-    // Calculate the position to center the step
-    const stepPosition = (stepNumber - 1) * (maxStepWidth + gap);
-    const stepCenter = stepPosition + maxStepWidth / 2;
-    const scrollPosition = stepCenter - containerWidth / 2;
+    // Calculate responsive step width (same logic as CSS)
+    const maxWidth = Math.min(350, (window.innerWidth - 140) / 1.5);
+    const stepWidth = Math.max(280, maxWidth); // Minimum width for readability
+    const gap = 24;
+    const spacerWidth = stepWidth; // Same as step width for centering
 
-    scrollContainerRef.current.scrollTo({
-      left: Math.max(0, scrollPosition), // Don't scroll past the beginning
+    // Calculate the position of the target step
+    // spacer + (steps before target * (stepWidth + gap)) + half of target step width
+    const stepPosition =
+      spacerWidth + (stepNumber - 1) * (stepWidth + gap) + stepWidth / 2;
+
+    // Center this position in the viewport
+    const scrollPosition = stepPosition - containerWidth / 2;
+
+    container.scrollTo({
+      left: Math.max(0, scrollPosition),
       behavior: "smooth",
     });
   };
@@ -251,23 +259,18 @@ function AppContent() {
               msOverflowStyle: "none",
               backgroundColor: "#f8f9fa",
               // Make the scroll container wide enough for all steps plus centering space
-              width: "calc(100% + min(700px, (100vw - 140px) * 1.33))", // Extra space for centering
-              marginLeft: "calc(-1 * min(350px, (100vw - 140px) / 1.5))", // Offset to allow centering
+              width: "calc(100% + 700px)", // Extra space for centering (2 * 350px spacers)
+              marginLeft: "-350px", // Offset to allow centering
             }}
           >
             {/* Invisible spacer for centering */}
-            <div
-              style={{
-                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
-                flexShrink: 0,
-              }}
-            />
+            <div style={{ minWidth: "350px", flexShrink: 0 }} />
 
             {/* Step 1: Authentication */}
             <div
               style={{
-                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
-                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                minWidth: "350px",
+                maxWidth: "350px",
                 flexShrink: 0,
                 opacity: 1,
                 transition: "opacity 0.3s ease",
@@ -279,8 +282,8 @@ function AppContent() {
             {/* Step 2: Photo Selection */}
             <div
               style={{
-                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
-                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                minWidth: "350px",
+                maxWidth: "350px",
                 flexShrink: 0,
                 opacity: step1Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -295,8 +298,8 @@ function AppContent() {
             {/* Step 3: Directory Selection */}
             <div
               style={{
-                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
-                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                minWidth: "350px",
+                maxWidth: "350px",
                 flexShrink: 0,
                 opacity: step2Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -312,8 +315,8 @@ function AppContent() {
             {/* Step 4: Download */}
             <div
               style={{
-                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
-                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                minWidth: "350px",
+                maxWidth: "350px",
                 flexShrink: 0,
                 opacity: step3Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -369,12 +372,7 @@ function AppContent() {
             </div>
 
             {/* Invisible spacer for centering */}
-            <div
-              style={{
-                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
-                flexShrink: 0,
-              }}
-            />
+            <div style={{ minWidth: "350px", flexShrink: 0 }} />
           </div>
 
           {/* Scroll indicator */}
