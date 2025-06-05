@@ -8,8 +8,17 @@ import { tmpdir } from "os";
 // Import static files to embed them in the executable
 import indexHtml from "./dist/index.html" with { type: "file" };
 import viteSvg from "./dist/vite.svg" with { type: "file" };
-import indexJs from "./dist/assets/index-BMboPiZp.js" with { type: "file" };
-import indexCss from "./dist/assets/index-C2P1lT0j.css" with { type: "file" };
+
+// Dynamically import assets based on what's actually built
+import { readdirSync, readFileSync } from "fs";
+const assetsDir = "./dist/assets";
+const assetFiles = readdirSync(assetsDir);
+const jsFile = assetFiles.find(f => f.startsWith("index-") && f.endsWith(".js"));
+const cssFile = assetFiles.find(f => f.startsWith("index-") && f.endsWith(".css"));
+
+if (!jsFile || !cssFile) {
+  throw new Error("Could not find built assets. Run 'bun run build' first.");
+}
 
 interface MediaFile {
   filename: string;
@@ -50,8 +59,8 @@ const staticFiles = new Map([
   ["/", indexHtml],
   ["/index.html", indexHtml],
   ["/vite.svg", viteSvg],
-  ["/assets/index-BMboPiZp.js", indexJs],
-  ["/assets/index-C2P1lT0j.css", indexCss],
+  [`/assets/${jsFile}`, `./dist/assets/${jsFile}`],
+  [`/assets/${cssFile}`, `./dist/assets/${cssFile}`],
 ]);
 
 async function downloadFile(

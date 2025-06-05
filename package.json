@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "sync-photos": "bun run sync-photos.ts",
     "server": "bun run server.ts",
-    "start": "bun run build && bun run server.ts"
+    "start": "bun run build && bun run server.ts",
+    "build:standalone": "bun run build && bun build --compile --minify --sourcemap server-standalone.ts --outfile google-photos-sync"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",

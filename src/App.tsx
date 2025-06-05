@@ -47,13 +47,13 @@ function AppContent() {
   const scrollToStep = (stepNumber: number) => {
     if (!scrollContainerRef.current) return;
 
-    const stepWidth = 380; // Each step is 380px wide
-    const gap = 24; // Gap between steps
     const containerWidth = scrollContainerRef.current.clientWidth;
+    const maxStepWidth = Math.min(350, (containerWidth - 100) / 1.5); // Responsive step width
+    const gap = 24; // Gap between steps
 
     // Calculate the position to center the step
-    const stepPosition = (stepNumber - 1) * (stepWidth + gap);
-    const stepCenter = stepPosition + stepWidth / 2;
+    const stepPosition = (stepNumber - 1) * (maxStepWidth + gap);
+    const stepCenter = stepPosition + maxStepWidth / 2;
     const scrollPosition = stepCenter - containerWidth / 2;
 
     scrollContainerRef.current.scrollTo({
@@ -251,18 +251,23 @@ function AppContent() {
               msOverflowStyle: "none",
               backgroundColor: "#f8f9fa",
               // Make the scroll container wide enough for all steps plus centering space
-              width: "calc(100% + 760px)", // Extra space for centering
-              marginLeft: "-380px", // Offset to allow centering
+              width: "calc(100% + min(700px, (100vw - 140px) * 1.33))", // Extra space for centering
+              marginLeft: "calc(-1 * min(350px, (100vw - 140px) / 1.5))", // Offset to allow centering
             }}
           >
             {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "380px", flexShrink: 0 }} />
+            <div
+              style={{
+                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                flexShrink: 0,
+              }}
+            />
 
             {/* Step 1: Authentication */}
             <div
               style={{
-                minWidth: "380px",
-                maxWidth: "380px",
+                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
                 flexShrink: 0,
                 opacity: 1,
                 transition: "opacity 0.3s ease",
@@ -274,8 +279,8 @@ function AppContent() {
             {/* Step 2: Photo Selection */}
             <div
               style={{
-                minWidth: "380px",
-                maxWidth: "380px",
+                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
                 flexShrink: 0,
                 opacity: step1Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -290,8 +295,8 @@ function AppContent() {
             {/* Step 3: Directory Selection */}
             <div
               style={{
-                minWidth: "380px",
-                maxWidth: "380px",
+                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
                 flexShrink: 0,
                 opacity: step2Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -307,8 +312,8 @@ function AppContent() {
             {/* Step 4: Download */}
             <div
               style={{
-                minWidth: "380px",
-                maxWidth: "380px",
+                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                maxWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
                 flexShrink: 0,
                 opacity: step3Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -364,7 +369,12 @@ function AppContent() {
             </div>
 
             {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "380px", flexShrink: 0 }} />
+            <div
+              style={{
+                minWidth: "calc(min(350px, (100vw - 140px) / 1.5))",
+                flexShrink: 0,
+              }}
+            />
           </div>
 
           {/* Scroll indicator */}
