@@ -33,7 +33,6 @@ export default function DownloadManager({
   const [progressId, setProgressId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [savedFiles, setSavedFiles] = useState<Set<string>>(new Set());
-  const [hasDownloaded, setHasDownloaded] = useState(false);
 
   // Poll for download progress and save files
   useEffect(() => {
@@ -55,7 +54,6 @@ export default function DownloadManager({
 
           if (progress.isComplete) {
             setIsDownloading(false);
-            setHasDownloaded(true);
             const savedCount = savedFiles.size;
             const totalFiles = savedCount + existingCount;
             setStatus(
@@ -182,11 +180,15 @@ export default function DownloadManager({
   const getButtonText = () => {
     if (isDownloading) return "Downloading...";
     if (newFilesCount === 0) return "Nothing to Download";
-    if (hasDownloaded && downloadProgress?.isComplete) return `🔄 Redownload ${newFilesCount} Files`;
+    if (downloadProgress?.isComplete) return "✅ Download Complete";
     return `🚀 Download ${newFilesCount} Files`;
   };
 
-  const isButtonDisabled = disabled || isDownloading || newFilesCount === 0;
+  const isButtonDisabled =
+    disabled ||
+    isDownloading ||
+    newFilesCount === 0 ||
+    downloadProgress?.isComplete;
 
   return (
     <div
