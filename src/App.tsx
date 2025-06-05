@@ -99,7 +99,12 @@ function AppContent() {
     <div
       style={{
         minHeight: "100vh",
-        backgroundColor: "#ffffff",
+        background: `
+          linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%),
+          radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+          radial-gradient(circle at 80% 80%, rgba(147, 51, 234, 0.02) 0%, transparent 50%),
+          radial-gradient(circle at 40% 70%, rgba(16, 185, 129, 0.02) 0%, transparent 50%)
+        `,
         padding: "20px",
         boxSizing: "border-box",
         maxWidth: "100vw",
@@ -107,6 +112,7 @@ function AppContent() {
         display: "flex",
         justifyContent: "center",
         alignItems: "flex-start",
+        position: "relative",
       }}
     >
       {/* Main container - centered with max width */}
@@ -421,13 +427,6 @@ function AppContent() {
             })}
           </div>
         </div>
-
-        {/* Hide horizontal scrollbar with CSS */}
-        <style>{`
-          div::-webkit-scrollbar {
-            display: none;
-          }
-        `}</style>
       </div>
     </div>
   );
