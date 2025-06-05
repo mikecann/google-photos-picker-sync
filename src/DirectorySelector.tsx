@@ -32,6 +32,63 @@ export default function DirectorySelector({
   const [progressId, setProgressId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [savedFiles, setSavedFiles] = useState<Set<string>>(new Set());
+  const [existingFiles, setExistingFiles] = useState<Set<string>>(new Set());
+  const [filteredMediaItems, setFilteredMediaItems] = useState<any[]>([]);
+  const [isCheckingFiles, setIsCheckingFiles] = useState(false);
+
+  // Check for existing files when directory is selected
+  useEffect(() => {
+    if (selectedDirectory) {
+      checkExistingFiles();
+    }
+  }, [selectedDirectory, mediaItems]);
+
+  const checkExistingFiles = async () => {
+    if (!selectedDirectory) return;
+
+    setIsCheckingFiles(true);
+    setStatus("Checking for existing files...");
+
+    try {
+      const existing = new Set<string>();
+      const filesToDownload: any[] = [];
+
+      for (const item of mediaItems) {
+        const filename = item.mediaFile?.filename;
+        if (!filename) continue;
+
+        try {
+          // Try to get the file handle - if it exists, this won't throw
+          await selectedDirectory.getFileHandle(filename, { create: false });
+          existing.add(filename);
+        } catch (error) {
+          // File doesn't exist, add to download list
+          filesToDownload.push(item);
+        }
+      }
+
+      setExistingFiles(existing);
+      setFilteredMediaItems(filesToDownload);
+
+      if (existing.size > 0) {
+        setStatus(
+          `✅ Directory selected: ${selectedDirectory.name}. Found ${existing.size} existing files, ${filesToDownload.length} new files to download.`
+        );
+      } else {
+        setStatus(
+          `✅ Directory selected: ${selectedDirectory.name}. ${filesToDownload.length} files to download.`
+        );
+      }
+    } catch (error) {
+      console.error("Error checking existing files:", error);
+      setStatus(
+        `⚠️ Could not check existing files. All ${mediaItems.length} files will be processed.`
+      );
+      setFilteredMediaItems(mediaItems);
+    } finally {
+      setIsCheckingFiles(false);
+    }
+  };
 
   // Poll for download progress and save files
   useEffect(() => {
@@ -54,8 +111,10 @@ export default function DirectorySelector({
           if (progress.isComplete) {
             setIsDownloading(false);
             const savedCount = savedFiles.size;
+            const existingCount = existingFiles.size;
+            const totalFiles = savedCount + existingCount;
             setStatus(
-              `🎉 Download complete! ${savedCount} files saved to your selected directory.`
+              `🎉 Download complete! ${savedCount} new files saved, ${existingCount} files already existed. Total: ${totalFiles} files in your directory.`
             );
 
             // Cleanup server-side temporary files
@@ -77,7 +136,7 @@ export default function DirectorySelector({
 
     const interval = setInterval(pollProgressAndSave, 1000);
     return () => clearInterval(interval);
-  }, [progressId, isDownloading, selectedDirectory, savedFiles]);
+  }, [progressId, isDownloading, selectedDirectory, savedFiles, existingFiles]);
 
   const saveFileToDirectory = async (filename: string) => {
     if (!selectedDirectory || !progressId) return;
@@ -139,7 +198,7 @@ export default function DirectorySelector({
       }
 
       setSelectedDirectory(directoryHandle);
-      setStatus(`✅ Directory selected: ${directoryHandle.name}`);
+      // Status will be set by checkExistingFiles
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         setStatus("Directory selection cancelled.");
@@ -151,8 +210,14 @@ export default function DirectorySelector({
   };
 
   const handleStartDownload = async () => {
-    if (!selectedDirectory || !mediaItems.length) {
-      setStatus("Please select a directory first.");
+    if (!selectedDirectory || !filteredMediaItems.length) {
+      if (existingFiles.size === mediaItems.length) {
+        setStatus(
+          "All files already exist in the selected directory. Nothing to download!"
+        );
+      } else {
+        setStatus("Please select a directory first.");
+      }
       return;
     }
 
@@ -165,7 +230,7 @@ export default function DirectorySelector({
       const sessionData = {
         oauthToken,
         sessionId,
-        mediaItems,
+        mediaItems: filteredMediaItems, // Only download new files
         timestamp: new Date().toISOString(),
       };
 
@@ -185,7 +250,7 @@ export default function DirectorySelector({
       const result = await response.json();
       setProgressId(result.progressId);
       setStatus(
-        "Downloads started! Files will be saved to your selected directory..."
+        `Downloads started! ${filteredMediaItems.length} new files will be saved to your selected directory...`
       );
     } catch (error) {
       console.error("Download start error:", error);
@@ -199,6 +264,9 @@ export default function DirectorySelector({
   };
 
   const savedCount = savedFiles.size;
+  const totalSelected = mediaItems.length;
+  const existingCount = existingFiles.size;
+  const newFilesCount = filteredMediaItems.length;
 
   return (
     <div
@@ -219,9 +287,33 @@ export default function DirectorySelector({
           📁 Step 3: Choose Directory & Download
         </h3>
         <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-          Select where to save your {mediaItems.length} selected photos
+          Select where to save your {totalSelected} selected photos
         </p>
       </div>
+
+      {/* File Summary */}
+      {selectedDirectory && !isCheckingFiles && (
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: "14px",
+            padding: "12px",
+            backgroundColor: "#f0f8ff",
+            borderRadius: "6px",
+            border: "1px solid #b3d9ff",
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+            📊 File Analysis
+          </div>
+          <div>
+            📂 Total selected: {totalSelected} files
+            <br />✅ Already exist: {existingCount} files
+            <br />
+            📥 To download: {newFilesCount} files
+          </div>
+        </div>
+      )}
 
       {/* Directory Selection */}
       <div
@@ -234,47 +326,68 @@ export default function DirectorySelector({
       >
         <button
           onClick={handleSelectDirectory}
-          disabled={disabled || isDownloading}
+          disabled={disabled || isDownloading || isCheckingFiles}
           style={{
             padding: "12px 24px",
             fontSize: "16px",
             fontWeight: "bold",
             color: "white",
-            backgroundColor: disabled || isDownloading ? "#ccc" : "#ff9800",
+            backgroundColor:
+              disabled || isDownloading || isCheckingFiles ? "#ccc" : "#ff9800",
             border: "none",
             borderRadius: "8px",
-            cursor: disabled || isDownloading ? "not-allowed" : "pointer",
+            cursor:
+              disabled || isDownloading || isCheckingFiles
+                ? "not-allowed"
+                : "pointer",
             minWidth: "200px",
           }}
         >
-          {selectedDirectory
+          {isCheckingFiles
+            ? "Checking files..."
+            : selectedDirectory
             ? `📂 ${selectedDirectory.name}`
             : "📂 Choose Directory"}
         </button>
 
-        {selectedDirectory && (
+        {selectedDirectory && !isCheckingFiles && (
           <button
             onClick={handleStartDownload}
-            disabled={disabled || isDownloading || !selectedDirectory}
+            disabled={
+              disabled ||
+              isDownloading ||
+              !selectedDirectory ||
+              newFilesCount === 0
+            }
             style={{
               padding: "12px 24px",
               fontSize: "16px",
               fontWeight: "bold",
               color: "white",
               backgroundColor:
-                disabled || isDownloading || !selectedDirectory
+                disabled ||
+                isDownloading ||
+                !selectedDirectory ||
+                newFilesCount === 0
                   ? "#ccc"
                   : "#4caf50",
               border: "none",
               borderRadius: "8px",
               cursor:
-                disabled || isDownloading || !selectedDirectory
+                disabled ||
+                isDownloading ||
+                !selectedDirectory ||
+                newFilesCount === 0
                   ? "not-allowed"
                   : "pointer",
               minWidth: "200px",
             }}
           >
-            {isDownloading ? "Downloading..." : "🚀 Start Download"}
+            {isDownloading
+              ? "Downloading..."
+              : newFilesCount === 0
+              ? "Nothing to Download"
+              : `🚀 Download ${newFilesCount} Files`}
           </button>
         )}
       </div>
@@ -325,7 +438,8 @@ export default function DirectorySelector({
               📥 Download Progress
             </div>
             <div style={{ fontSize: "14px", color: "#666" }}>
-              {savedCount} of {downloadProgress.total} files saved to directory
+              {savedCount} of {downloadProgress.total} new files saved to
+              directory
             </div>
           </div>
 
@@ -339,7 +453,11 @@ export default function DirectorySelector({
           >
             <div
               style={{
-                width: `${(savedCount / downloadProgress.total) * 100}%`,
+                width: `${
+                  downloadProgress.total > 0
+                    ? (savedCount / downloadProgress.total) * 100
+                    : 0
+                }%`,
                 backgroundColor: "#4CAF50",
                 height: "100%",
                 borderRadius: "4px",
@@ -351,6 +469,12 @@ export default function DirectorySelector({
           <div style={{ fontSize: "12px", color: "#666", textAlign: "center" }}>
             📁 Saved: {savedCount} • ⬇️ Downloaded:{" "}
             {downloadProgress.downloaded} • ❌ Failed: {downloadProgress.failed}
+            {existingCount > 0 && (
+              <>
+                <br />
+                ⏭️ Already existed: {existingCount}
+              </>
+            )}
           </div>
 
           {downloadProgress.currentFile && (
@@ -369,7 +493,7 @@ export default function DirectorySelector({
                 fontWeight: "bold",
               }}
             >
-              🎉 All files saved to your directory!
+              🎉 All new files saved to your directory!
             </div>
           )}
 
