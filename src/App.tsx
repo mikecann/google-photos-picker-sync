@@ -4,6 +4,7 @@ import { useAuth } from "./GoogleAuthProvider";
 import AuthButton from "./AuthButton";
 import PhotoSelector from "./PhotoSelector";
 import DirectorySelector from "./DirectorySelector";
+import DownloadManager from "./DownloadManager";
 
 function AppContent() {
   const { isSignedIn } = useAuth();
@@ -13,12 +14,28 @@ function AppContent() {
     sessionId: string;
   } | null>(null);
 
+  const [directoryInfo, setDirectoryInfo] = useState<{
+    directory: FileSystemDirectoryHandle;
+    filteredItems: any[];
+    existingCount: number;
+  } | null>(null);
+
   const handlePhotosSelected = (
     mediaItems: any[],
     oauthToken: string,
     sessionId: string
   ) => {
     setSelectedPhotos({ mediaItems, oauthToken, sessionId });
+    // Reset directory info when new photos are selected
+    setDirectoryInfo(null);
+  };
+
+  const handleDirectorySelected = (
+    directory: FileSystemDirectoryHandle,
+    filteredItems: any[],
+    existingCount: number
+  ) => {
+    setDirectoryInfo({ directory, filteredItems, existingCount });
   };
 
   return (
@@ -39,7 +56,7 @@ function AppContent() {
           Google Photos Picker Sync
         </h1>
         <p style={{ margin: 0, color: "#666", fontSize: "16px" }}>
-          Sync your Google Photos to your computer in 3 easy steps
+          Sync your Google Photos to your computer in 4 easy steps
         </p>
       </div>
 
@@ -52,12 +69,23 @@ function AppContent() {
         disabled={!isSignedIn}
       />
 
-      {/* Step 3: Directory Selection & Download */}
+      {/* Step 3: Directory Selection */}
       {selectedPhotos && (
         <DirectorySelector
           mediaItems={selectedPhotos.mediaItems}
+          onDirectorySelected={handleDirectorySelected}
+          disabled={!selectedPhotos}
+        />
+      )}
+
+      {/* Step 4: Download */}
+      {selectedPhotos && directoryInfo && (
+        <DownloadManager
+          mediaItems={directoryInfo.filteredItems}
           oauthToken={selectedPhotos.oauthToken}
           sessionId={selectedPhotos.sessionId}
+          selectedDirectory={directoryInfo.directory}
+          existingCount={directoryInfo.existingCount}
         />
       )}
     </div>
