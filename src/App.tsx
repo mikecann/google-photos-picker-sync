@@ -30,7 +30,7 @@ function AppContent() {
     setSelectedPhotos({ mediaItems, oauthToken, sessionId });
     // Reset directory info when new photos are selected
     setDirectoryInfo(null);
-    // Scroll to step 3
+    // Scroll to step 3 (center it)
     setTimeout(() => scrollToStep(3), 100);
   };
 
@@ -40,19 +40,24 @@ function AppContent() {
     existingCount: number
   ) => {
     setDirectoryInfo({ directory, filteredItems, existingCount });
-    // Scroll to step 4
+    // Scroll to step 4 (center it)
     setTimeout(() => scrollToStep(4), 100);
   };
 
   const scrollToStep = (stepNumber: number) => {
     if (!scrollContainerRef.current) return;
 
-    const stepWidth = 380; // Each step is 380px wide (400px - padding)
+    const stepWidth = 380; // Each step is 380px wide
     const gap = 24; // Gap between steps
-    const scrollPosition = (stepNumber - 1) * (stepWidth + gap);
+    const containerWidth = scrollContainerRef.current.clientWidth;
+
+    // Calculate the position to center the step
+    const stepPosition = (stepNumber - 1) * (stepWidth + gap);
+    const stepCenter = stepPosition + stepWidth / 2;
+    const scrollPosition = stepCenter - containerWidth / 2;
 
     scrollContainerRef.current.scrollTo({
-      left: scrollPosition,
+      left: Math.max(0, scrollPosition), // Don't scroll past the beginning
       behavior: "smooth",
     });
   };
@@ -78,12 +83,17 @@ function AppContent() {
     }
   };
 
-  // Auto-scroll to step 2 when signed in
+  // Auto-scroll to step 2 when signed in (center it)
   useEffect(() => {
     if (isSignedIn) {
       setTimeout(() => scrollToStep(2), 100);
     }
   }, [isSignedIn]);
+
+  // Center step 1 on initial load
+  useEffect(() => {
+    setTimeout(() => scrollToStep(1), 100);
+  }, []);
 
   return (
     <div
@@ -91,17 +101,22 @@ function AppContent() {
         minHeight: "100vh",
         backgroundColor: "#ffffff",
         padding: "20px",
+        boxSizing: "border-box",
+        maxWidth: "100vw",
+        overflow: "hidden", // Prevent page-level horizontal scroll
         display: "flex",
         justifyContent: "center",
+        alignItems: "flex-start",
       }}
     >
-      {/* Main constrained container */}
+      {/* Main container - centered with max width */}
       <div
         style={{
           width: "100%",
-          maxWidth: "900px",
+          maxWidth: "900px", // Set a reasonable max width
           display: "flex",
           flexDirection: "column",
+          alignItems: "center",
         }}
       >
         {/* Header */}
@@ -120,7 +135,8 @@ function AppContent() {
             display: "flex",
             justifyContent: "center",
             marginBottom: 30,
-            padding: "0 20px",
+            width: "100%",
+            maxWidth: "600px",
           }}
         >
           <div
@@ -128,7 +144,6 @@ function AppContent() {
               display: "flex",
               alignItems: "center",
               gap: "12px",
-              maxWidth: "600px",
               width: "100%",
             }}
           >
@@ -213,6 +228,8 @@ function AppContent() {
             overflow: "hidden",
             borderRadius: "12px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            width: "100%",
+            maxWidth: "calc(100vw - 40px)", // Ensure it doesn't exceed viewport
           }}
         >
           <div
@@ -227,13 +244,20 @@ function AppContent() {
               scrollbarWidth: "none",
               msOverflowStyle: "none",
               backgroundColor: "#f8f9fa",
+              // Make the scroll container wide enough for all steps plus centering space
+              width: "calc(100% + 760px)", // Extra space for centering
+              marginLeft: "-380px", // Offset to allow centering
             }}
           >
+            {/* Invisible spacer for centering */}
+            <div style={{ minWidth: "380px", flexShrink: 0 }} />
+
             {/* Step 1: Authentication */}
             <div
               style={{
                 minWidth: "380px",
                 maxWidth: "380px",
+                flexShrink: 0,
                 opacity: 1,
                 transition: "opacity 0.3s ease",
               }}
@@ -246,6 +270,7 @@ function AppContent() {
               style={{
                 minWidth: "380px",
                 maxWidth: "380px",
+                flexShrink: 0,
                 opacity: step1Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
               }}
@@ -261,6 +286,7 @@ function AppContent() {
               style={{
                 minWidth: "380px",
                 maxWidth: "380px",
+                flexShrink: 0,
                 opacity: step2Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
               }}
@@ -277,6 +303,7 @@ function AppContent() {
               style={{
                 minWidth: "380px",
                 maxWidth: "380px",
+                flexShrink: 0,
                 opacity: step3Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
               }}
@@ -329,6 +356,9 @@ function AppContent() {
                 </div>
               )}
             </div>
+
+            {/* Invisible spacer for centering */}
+            <div style={{ minWidth: "380px", flexShrink: 0 }} />
           </div>
 
           {/* Scroll indicator */}
