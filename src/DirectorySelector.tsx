@@ -31,7 +31,7 @@ export default function DirectorySelector({
     useState<DownloadProgress | null>(null);
   const [progressId, setProgressId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
-  const [savedCount, setSavedCount] = useState(0);
+  const [savedFiles, setSavedFiles] = useState<Set<string>>(new Set());
 
   // Poll for download progress and save files
   useEffect(() => {
@@ -46,22 +46,16 @@ export default function DirectorySelector({
 
           // Save any ready files that haven't been saved yet
           for (const fileInfo of progress.files) {
-            if (
-              fileInfo.ready &&
-              savedCount <
-                progress.files.filter(
-                  (f: { filename: string; size: number; ready: boolean }) =>
-                    f.ready
-                ).length
-            ) {
+            if (fileInfo.ready && !savedFiles.has(fileInfo.filename)) {
               await saveFileToDirectory(fileInfo.filename);
             }
           }
 
           if (progress.isComplete) {
             setIsDownloading(false);
+            const savedCount = savedFiles.size;
             setStatus(
-              `🎉 Download complete! ${progress.downloaded} files saved to your selected directory.`
+              `🎉 Download complete! ${savedCount} files saved to your selected directory.`
             );
 
             // Cleanup server-side temporary files
@@ -83,7 +77,7 @@ export default function DirectorySelector({
 
     const interval = setInterval(pollProgressAndSave, 1000);
     return () => clearInterval(interval);
-  }, [progressId, isDownloading, selectedDirectory, savedCount]);
+  }, [progressId, isDownloading, selectedDirectory, savedFiles]);
 
   const saveFileToDirectory = async (filename: string) => {
     if (!selectedDirectory || !progressId) return;
@@ -100,6 +94,14 @@ export default function DirectorySelector({
       // Get file data
       const arrayBuffer = await response.arrayBuffer();
 
+      // Request permission for this specific file if needed
+      const permission = await selectedDirectory.requestPermission({
+        mode: "readwrite",
+      });
+      if (permission !== "granted") {
+        throw new Error("Permission denied to write to directory");
+      }
+
       // Create file in selected directory
       const fileHandle = await selectedDirectory.getFileHandle(filename, {
         create: true,
@@ -108,7 +110,7 @@ export default function DirectorySelector({
       await writable.write(arrayBuffer);
       await writable.close();
 
-      setSavedCount((prev) => prev + 1);
+      setSavedFiles((prev) => new Set([...prev, filename]));
     } catch (error) {
       console.error(`Failed to save ${filename}:`, error);
       setStatus(`Error saving ${filename}: ${error}`);
@@ -119,6 +121,23 @@ export default function DirectorySelector({
     try {
       setStatus("Opening directory picker...");
       const directoryHandle = await getDirectoryHandle();
+
+      // Request persistent permission immediately
+      try {
+        const permission = await directoryHandle.requestPermission({
+          mode: "readwrite",
+        });
+        if (permission !== "granted") {
+          setStatus(
+            "Permission denied. Please select a directory and allow write access."
+          );
+          return;
+        }
+      } catch (error) {
+        console.warn("Could not request persistent permissions:", error);
+        // Continue anyway, will request per-file permissions
+      }
+
       setSelectedDirectory(directoryHandle);
       setStatus(`✅ Directory selected: ${directoryHandle.name}`);
     } catch (error) {
@@ -140,7 +159,7 @@ export default function DirectorySelector({
     setIsDownloading(true);
     setStatus("Starting downloads...");
     setDownloadProgress(null);
-    setSavedCount(0);
+    setSavedFiles(new Set());
 
     try {
       const sessionData = {
@@ -178,6 +197,8 @@ export default function DirectorySelector({
       setIsDownloading(false);
     }
   };
+
+  const savedCount = savedFiles.size;
 
   return (
     <div
