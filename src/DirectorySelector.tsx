@@ -11,11 +11,11 @@ interface DirectorySelectorProps {
 interface DownloadProgress {
   total: number;
   downloaded: number;
-  skipped: number;
   failed: number;
   currentFile: string | null;
   isComplete: boolean;
   errors: string[];
+  files: Array<{ filename: string; size: number; ready: boolean }>;
 }
 
 export default function DirectorySelector({
@@ -26,29 +26,54 @@ export default function DirectorySelector({
 }: DirectorySelectorProps) {
   const [selectedDirectory, setSelectedDirectory] =
     useState<FileSystemDirectoryHandle | null>(null);
-  const [directoryPath, setDirectoryPath] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] =
     useState<DownloadProgress | null>(null);
   const [progressId, setProgressId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [savedCount, setSavedCount] = useState(0);
 
-  // Poll for download progress
+  // Poll for download progress and save files
   useEffect(() => {
-    if (!progressId || !isDownloading) return;
+    if (!progressId || !isDownloading || !selectedDirectory) return;
 
-    const pollProgress = async () => {
+    const pollProgressAndSave = async () => {
       try {
         const response = await fetch(`/api/progress?id=${progressId}`);
         if (response.ok) {
           const progress = await response.json();
           setDownloadProgress(progress);
 
+          // Save any ready files that haven't been saved yet
+          for (const fileInfo of progress.files) {
+            if (
+              fileInfo.ready &&
+              savedCount <
+                progress.files.filter(
+                  (f: { filename: string; size: number; ready: boolean }) =>
+                    f.ready
+                ).length
+            ) {
+              await saveFileToDirectory(fileInfo.filename);
+            }
+          }
+
           if (progress.isComplete) {
             setIsDownloading(false);
             setStatus(
-              `🎉 Download complete! ${progress.downloaded} files downloaded, ${progress.skipped} skipped, ${progress.failed} failed.`
+              `🎉 Download complete! ${progress.downloaded} files saved to your selected directory.`
             );
+
+            // Cleanup server-side temporary files
+            try {
+              await fetch("/api/cleanup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ progressId }),
+              });
+            } catch (error) {
+              console.warn("Failed to cleanup temporary files:", error);
+            }
           }
         }
       } catch (error) {
@@ -56,31 +81,46 @@ export default function DirectorySelector({
       }
     };
 
-    const interval = setInterval(pollProgress, 1000);
+    const interval = setInterval(pollProgressAndSave, 1000);
     return () => clearInterval(interval);
-  }, [progressId, isDownloading]);
+  }, [progressId, isDownloading, selectedDirectory, savedCount]);
+
+  const saveFileToDirectory = async (filename: string) => {
+    if (!selectedDirectory || !progressId) return;
+
+    try {
+      // Download file from server
+      const response = await fetch(
+        `/api/file?progressId=${progressId}&filename=${encodeURIComponent(
+          filename
+        )}`
+      );
+      if (!response.ok) throw new Error("Failed to fetch file from server");
+
+      // Get file data
+      const arrayBuffer = await response.arrayBuffer();
+
+      // Create file in selected directory
+      const fileHandle = await selectedDirectory.getFileHandle(filename, {
+        create: true,
+      });
+      const writable = await fileHandle.createWritable();
+      await writable.write(arrayBuffer);
+      await writable.close();
+
+      setSavedCount((prev) => prev + 1);
+    } catch (error) {
+      console.error(`Failed to save ${filename}:`, error);
+      setStatus(`Error saving ${filename}: ${error}`);
+    }
+  };
 
   const handleSelectDirectory = async () => {
     try {
       setStatus("Opening directory picker...");
       const directoryHandle = await getDirectoryHandle();
       setSelectedDirectory(directoryHandle);
-      setStatus(`Selected directory: ${directoryHandle.name}`);
-
-      // Since the File System Access API doesn't give us full paths for security reasons,
-      // we need to ask the user to provide the full path
-      const userPath = prompt(
-        `Please enter the full path to the selected directory "${directoryHandle.name}":\n\nExample: C:\\Users\\YourName\\Pictures\\${directoryHandle.name}`,
-        directoryHandle.name
-      );
-
-      if (userPath) {
-        setDirectoryPath(userPath);
-        setStatus(`✅ Directory ready: ${userPath}`);
-      } else {
-        setStatus("Full directory path is required to continue.");
-        setSelectedDirectory(null);
-      }
+      setStatus(`✅ Directory selected: ${directoryHandle.name}`);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         setStatus("Directory selection cancelled.");
@@ -92,7 +132,7 @@ export default function DirectorySelector({
   };
 
   const handleStartDownload = async () => {
-    if (!directoryPath || !mediaItems.length) {
+    if (!selectedDirectory || !mediaItems.length) {
       setStatus("Please select a directory first.");
       return;
     }
@@ -100,13 +140,13 @@ export default function DirectorySelector({
     setIsDownloading(true);
     setStatus("Starting downloads...");
     setDownloadProgress(null);
+    setSavedCount(0);
 
     try {
       const sessionData = {
         oauthToken,
         sessionId,
         mediaItems,
-        selectedDirectoryPath: directoryPath,
         timestamp: new Date().toISOString(),
       };
 
@@ -125,7 +165,9 @@ export default function DirectorySelector({
 
       const result = await response.json();
       setProgressId(result.progressId);
-      setStatus("Downloads started! Check progress below...");
+      setStatus(
+        "Downloads started! Files will be saved to your selected directory..."
+      );
     } catch (error) {
       console.error("Download start error:", error);
       const errorMessage =
@@ -181,32 +223,34 @@ export default function DirectorySelector({
             border: "none",
             borderRadius: "8px",
             cursor: disabled || isDownloading ? "not-allowed" : "pointer",
-            minWidth: "180px",
+            minWidth: "200px",
           }}
         >
-          📂 Choose Directory
+          {selectedDirectory
+            ? `📂 ${selectedDirectory.name}`
+            : "📂 Choose Directory"}
         </button>
 
-        {selectedDirectory && directoryPath && (
+        {selectedDirectory && (
           <button
             onClick={handleStartDownload}
-            disabled={disabled || isDownloading || !directoryPath}
+            disabled={disabled || isDownloading || !selectedDirectory}
             style={{
               padding: "12px 24px",
               fontSize: "16px",
               fontWeight: "bold",
               color: "white",
               backgroundColor:
-                disabled || isDownloading || !directoryPath
+                disabled || isDownloading || !selectedDirectory
                   ? "#ccc"
                   : "#4caf50",
               border: "none",
               borderRadius: "8px",
               cursor:
-                disabled || isDownloading || !directoryPath
+                disabled || isDownloading || !selectedDirectory
                   ? "not-allowed"
                   : "pointer",
-              minWidth: "180px",
+              minWidth: "200px",
             }}
           >
             {isDownloading ? "Downloading..." : "🚀 Start Download"}
@@ -260,8 +304,7 @@ export default function DirectorySelector({
               📥 Download Progress
             </div>
             <div style={{ fontSize: "14px", color: "#666" }}>
-              {downloadProgress.downloaded + downloadProgress.skipped} of{" "}
-              {downloadProgress.total} files processed
+              {savedCount} of {downloadProgress.total} files saved to directory
             </div>
           </div>
 
@@ -275,11 +318,7 @@ export default function DirectorySelector({
           >
             <div
               style={{
-                width: `${
-                  ((downloadProgress.downloaded + downloadProgress.skipped) /
-                    downloadProgress.total) *
-                  100
-                }%`,
+                width: `${(savedCount / downloadProgress.total) * 100}%`,
                 backgroundColor: "#4CAF50",
                 height: "100%",
                 borderRadius: "4px",
@@ -289,8 +328,8 @@ export default function DirectorySelector({
           </div>
 
           <div style={{ fontSize: "12px", color: "#666", textAlign: "center" }}>
-            ✅ Downloaded: {downloadProgress.downloaded} • ⏭️ Skipped:{" "}
-            {downloadProgress.skipped} • ❌ Failed: {downloadProgress.failed}
+            📁 Saved: {savedCount} • ⬇️ Downloaded:{" "}
+            {downloadProgress.downloaded} • ❌ Failed: {downloadProgress.failed}
           </div>
 
           {downloadProgress.currentFile && (
@@ -305,11 +344,11 @@ export default function DirectorySelector({
             <div
               style={{
                 textAlign: "center",
-                color: "#4CAF50",
+                color: "#4caf50",
                 fontWeight: "bold",
               }}
             >
-              🎉 All downloads completed!
+              🎉 All files saved to your directory!
             </div>
           )}
 

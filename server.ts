@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "fs";
-import { join, resolve } from "path";
+import { existsSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { join } from "path";
 import { file } from "bun";
+import { tmpdir } from "os";
 
 interface MediaFile {
   filename: string;
@@ -21,28 +22,28 @@ interface SessionData {
   oauthToken: string;
   sessionId: string;
   mediaItems: MediaItem[];
-  selectedDirectoryPath: string;
   timestamp: string;
 }
 
 interface DownloadProgress {
   total: number;
   downloaded: number;
-  skipped: number;
   failed: number;
   currentFile: string | null;
   isComplete: boolean;
   errors: string[];
+  files: Array<{ filename: string; size: number; ready: boolean }>;
 }
 
 // Global progress tracking
 const downloadProgress: Map<string, DownloadProgress> = new Map();
+const downloadDirs: Map<string, string> = new Map(); // Maps progressId to temp directory
 
 async function downloadFile(
   url: string,
   filepath: string,
   oauthToken: string
-): Promise<void> {
+): Promise<number> {
   const response = await fetch(url, {
     headers: {
       Authorization: `Bearer ${oauthToken}`,
@@ -58,37 +59,30 @@ async function downloadFile(
   const buffer = Buffer.from(arrayBuffer);
 
   writeFileSync(filepath, buffer);
+  return buffer.length;
 }
 
 async function processDownloads(sessionData: SessionData, progressId: string) {
-  const { oauthToken, mediaItems, selectedDirectoryPath } = sessionData;
+  const { oauthToken, mediaItems } = sessionData;
 
-  // Create target directory if it doesn't exist
-  const resolvedTargetDir = resolve(selectedDirectoryPath);
-  if (!existsSync(resolvedTargetDir)) {
-    mkdirSync(resolvedTargetDir, { recursive: true });
+  // Create temporary directory for this download session
+  const tempDir = join(tmpdir(), `google-photos-sync-${progressId}`);
+  if (!existsSync(tempDir)) {
+    mkdirSync(tempDir, { recursive: true });
   }
+  downloadDirs.set(progressId, tempDir);
 
   // Initialize progress
   const progress: DownloadProgress = {
     total: mediaItems.length,
     downloaded: 0,
-    skipped: 0,
     failed: 0,
     currentFile: null,
     isComplete: false,
     errors: [],
+    files: [],
   };
   downloadProgress.set(progressId, progress);
-
-  // Analyze existing files
-  const existingFiles = new Set<string>();
-  try {
-    const files = readdirSync(resolvedTargetDir);
-    files.forEach((file) => existingFiles.add(file));
-  } catch (error) {
-    console.log(`⚠️  Could not read directory: ${error}`);
-  }
 
   // Process downloads
   for (let i = 0; i < mediaItems.length; i++) {
@@ -101,25 +95,23 @@ async function processDownloads(sessionData: SessionData, progressId: string) {
       continue;
     }
 
-    const { filename, baseUrl, mimeType } = mediaFile;
-    const targetPath = join(resolvedTargetDir, filename);
+    const { filename, baseUrl } = mediaFile;
+    const targetPath = join(tempDir, filename);
 
     progress.currentFile = filename;
     downloadProgress.set(progressId, { ...progress });
 
-    // Check if file already exists
-    if (existingFiles.has(filename)) {
-      progress.skipped++;
-      existingFiles.add(filename);
-      continue;
-    }
-
     // Download the file
     try {
       const downloadUrl = `${baseUrl}=d`;
-      await downloadFile(downloadUrl, targetPath, oauthToken);
+      const fileSize = await downloadFile(downloadUrl, targetPath, oauthToken);
+
       progress.downloaded++;
-      existingFiles.add(filename);
+      progress.files.push({
+        filename,
+        size: fileSize,
+        ready: true,
+      });
     } catch (error) {
       progress.failed++;
       progress.errors.push(`${filename}: ${error}`);
@@ -191,6 +183,53 @@ const server = Bun.serve({
         return Response.json(progress);
       }
 
+      // Download file endpoint
+      if (url.pathname === "/api/file" && req.method === "GET") {
+        const progressId = url.searchParams.get("progressId");
+        const filename = url.searchParams.get("filename");
+
+        if (!progressId || !filename) {
+          return Response.json(
+            { error: "Missing progressId or filename" },
+            { status: 400 }
+          );
+        }
+
+        const tempDir = downloadDirs.get(progressId);
+        if (!tempDir) {
+          return Response.json(
+            { error: "Download session not found" },
+            { status: 404 }
+          );
+        }
+
+        const filePath = join(tempDir, filename);
+        if (!existsSync(filePath)) {
+          return Response.json({ error: "File not found" }, { status: 404 });
+        }
+
+        return new Response(file(filePath));
+      }
+
+      // Cleanup endpoint
+      if (url.pathname === "/api/cleanup" && req.method === "POST") {
+        const { progressId } = await req.json();
+
+        const tempDir = downloadDirs.get(progressId);
+        if (tempDir && existsSync(tempDir)) {
+          try {
+            rmSync(tempDir, { recursive: true, force: true });
+            downloadDirs.delete(progressId);
+            downloadProgress.delete(progressId);
+            return Response.json({ success: true });
+          } catch {
+            return Response.json({ error: "Cleanup failed" }, { status: 500 });
+          }
+        }
+
+        return Response.json({ success: true });
+      }
+
       // Unknown API endpoint
       return new Response("Not Found", { status: 404 });
     }
@@ -226,4 +265,8 @@ const server = Bun.serve({
   },
 });
 
+console.log(
+  `🚀 Google Photos Sync server running at http://localhost:${server.port}`
+);
+console.log(`📁 Serving static files from ./dist`);
 console.log(`🔗 Open http://localhost:3000 in your browser to start syncing`);
