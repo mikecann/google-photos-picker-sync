@@ -226,8 +226,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(
-  `🚀 Google Photos Sync server running at http://localhost:${server.port}`
-);
-console.log(`📁 Serving static files from ./dist`);
 console.log(`🔗 Open http://localhost:3000 in your browser to start syncing`);

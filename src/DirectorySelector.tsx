@@ -1,18 +1,11 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "./GoogleAuthProvider";
-import {
-  createPickerSession,
-  pollSession,
-  fetchPickedMediaItems,
-} from "./PickerService";
 import { getDirectoryHandle } from "./FileService";
 
-interface SessionData {
+interface DirectorySelectorProps {
+  mediaItems: any[];
   oauthToken: string;
   sessionId: string;
-  mediaItems: any[];
-  selectedDirectoryPath: string;
-  timestamp: string;
+  disabled?: boolean;
 }
 
 interface DownloadProgress {
@@ -25,14 +18,20 @@ interface DownloadProgress {
   errors: string[];
 }
 
-export default function SyncButton() {
-  const { oauthToken } = useAuth();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [progress, setProgress] = useState("");
+export default function DirectorySelector({
+  mediaItems,
+  oauthToken,
+  sessionId,
+  disabled,
+}: DirectorySelectorProps) {
+  const [selectedDirectory, setSelectedDirectory] =
+    useState<FileSystemDirectoryHandle | null>(null);
+  const [directoryPath, setDirectoryPath] = useState("");
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] =
     useState<DownloadProgress | null>(null);
   const [progressId, setProgressId] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
 
   // Poll for download progress
   useEffect(() => {
@@ -47,8 +46,8 @@ export default function SyncButton() {
 
           if (progress.isComplete) {
             setIsDownloading(false);
-            setProgress(
-              `Download complete! ${progress.downloaded} files downloaded, ${progress.skipped} skipped, ${progress.failed} failed.`
+            setStatus(
+              `🎉 Download complete! ${progress.downloaded} files downloaded, ${progress.skipped} skipped, ${progress.failed} failed.`
             );
           }
         }
@@ -61,103 +60,49 @@ export default function SyncButton() {
     return () => clearInterval(interval);
   }, [progressId, isDownloading]);
 
-  const handleSync = async () => {
-    console.log("🚀 Starting sync process...");
+  const handleSelectDirectory = async () => {
+    try {
+      setStatus("Opening directory picker...");
+      const directoryHandle = await getDirectoryHandle();
+      setSelectedDirectory(directoryHandle);
+      setStatus(`Selected directory: ${directoryHandle.name}`);
 
-    if (!oauthToken) {
-      console.log("❌ No OAuth token found");
-      setProgress("Please sign in first");
+      // Since the File System Access API doesn't give us full paths for security reasons,
+      // we need to ask the user to provide the full path
+      const userPath = prompt(
+        `Please enter the full path to the selected directory "${directoryHandle.name}":\n\nExample: C:\\Users\\YourName\\Pictures\\${directoryHandle.name}`,
+        directoryHandle.name
+      );
+
+      if (userPath) {
+        setDirectoryPath(userPath);
+        setStatus(`✅ Directory ready: ${userPath}`);
+      } else {
+        setStatus("Full directory path is required to continue.");
+        setSelectedDirectory(null);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        setStatus("Directory selection cancelled.");
+      } else {
+        console.error("Directory selection error:", error);
+        setStatus(`Error selecting directory: ${error}`);
+      }
+    }
+  };
+
+  const handleStartDownload = async () => {
+    if (!directoryPath || !mediaItems.length) {
+      setStatus("Please select a directory first.");
       return;
     }
 
-    setIsSyncing(true);
+    setIsDownloading(true);
+    setStatus("Starting downloads...");
     setDownloadProgress(null);
-    setProgressId(null);
-    setProgress("Please select a folder to sync to...");
-    console.log("📁 Requesting directory selection from user...");
 
     try {
-      // Step 1: Get directory handle while we still have user gesture
-      const dir = await getDirectoryHandle();
-      console.log("✅ Directory selected:", dir.name);
-
-      // Get the full directory path from the handle
-      let directoryPath = dir.name;
-
-      // Try to get a more complete path if possible
-      // Note: For security reasons, browsers don't give full paths
-      // But we can ask the user for it
-      const userPath = prompt(
-        `Please enter the full path to the selected directory "${dir.name}":\n\nExample: C:\\Users\\YourName\\Pictures\\GooglePhotos`,
-        directoryPath
-      );
-
-      if (!userPath) {
-        setProgress("Directory path required to continue.");
-        setIsSyncing(false);
-        return;
-      }
-
-      directoryPath = userPath;
-
-      // Step 2: Create a picker session
-      setProgress("Creating picker session...");
-      console.log("🔄 Creating picker session...");
-      const { pickerUri, sessionId } = await createPickerSession({
-        oauthToken,
-      });
-      console.log("✅ Picker session created:", { sessionId, pickerUri });
-
-      // Step 3: Open the picker for the user
-      setProgress(
-        "Opening Google Photos Picker... Please select your photos and close the picker window when done."
-      );
-      console.log("🖼️ Opening picker window...");
-      const pickerWindow = window.open(
-        pickerUri,
-        "_blank",
-        "width=800,height=600,scrollbars=yes,resizable=yes"
-      );
-
-      if (!pickerWindow) {
-        throw new Error(
-          "Failed to open picker window. Please allow popups and try again."
-        );
-      }
-      console.log("✅ Picker window opened successfully");
-
-      // Step 4: Poll the session to check if user has finished selecting
-      setProgress("Waiting for you to finish selecting photos...");
-      console.log("⏳ Starting to poll session for completion...");
-      const mediaItemsSet = await pollSession({ oauthToken, sessionId });
-      console.log("🔍 Polling result:", { mediaItemsSet });
-
-      if (!mediaItemsSet) {
-        console.log("❌ Selection timed out or was cancelled");
-        setProgress("Selection timed out or was cancelled.");
-        setIsSyncing(false);
-        return;
-      }
-
-      // Step 5: Fetch the selected media items
-      setProgress("Fetching selected media items...");
-      console.log("📥 Fetching selected media items...");
-      const mediaItems = await fetchPickedMediaItems({ oauthToken, sessionId });
-      console.log("✅ Media items fetched:", {
-        count: mediaItems?.length,
-        items: mediaItems,
-      });
-
-      if (!mediaItems || mediaItems.length === 0) {
-        console.log("❌ No media items were selected");
-        setProgress("No media items were selected.");
-        setIsSyncing(false);
-        return;
-      }
-
-      // Step 6: Send session data to server and start downloads
-      setProgress("Starting downloads...");
-      const sessionData: SessionData = {
+      const sessionData = {
         oauthToken,
         sessionId,
         mediaItems,
@@ -180,19 +125,15 @@ export default function SyncButton() {
 
       const result = await response.json();
       setProgressId(result.progressId);
-      setIsDownloading(true);
-      setProgress("Downloads started! Check progress below...");
-      console.log("✅ Downloads started with progress ID:", result.progressId);
+      setStatus("Downloads started! Check progress below...");
     } catch (error) {
-      console.error("💥 Sync error:", error);
+      console.error("Download start error:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
-          : "An unexpected error occurred during sync.";
-      setProgress(`Error: ${errorMessage}`);
-    } finally {
-      console.log("🏁 Sync process completed");
-      setIsSyncing(false);
+          : "An unexpected error occurred starting downloads.";
+      setStatus(`Error: ${errorMessage}`);
+      setIsDownloading(false);
     }
   };
 
@@ -203,42 +144,103 @@ export default function SyncButton() {
         flexDirection: "column",
         alignItems: "center",
         gap: "16px",
+        padding: "24px",
+        border: "2px solid #e0e0e0",
+        borderRadius: "12px",
+        backgroundColor: "#fafafa",
         maxWidth: "600px",
       }}
     >
-      <button
-        onClick={handleSync}
-        disabled={isSyncing || !oauthToken || isDownloading}
+      <div style={{ textAlign: "center" }}>
+        <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
+          📁 Step 3: Choose Directory & Download
+        </h3>
+        <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
+          Select where to save your {mediaItems.length} selected photos
+        </p>
+      </div>
+
+      {/* Directory Selection */}
+      <div
         style={{
-          minWidth: "120px",
-          opacity: isSyncing || !oauthToken || isDownloading ? 0.6 : 1,
-          cursor:
-            isSyncing || !oauthToken || isDownloading
-              ? "not-allowed"
-              : "pointer",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          alignItems: "center",
         }}
       >
-        {isSyncing
-          ? "Syncing..."
-          : isDownloading
-          ? "Downloading..."
-          : "Sync Photos"}
-      </button>
+        <button
+          onClick={handleSelectDirectory}
+          disabled={disabled || isDownloading}
+          style={{
+            padding: "12px 24px",
+            fontSize: "16px",
+            fontWeight: "bold",
+            color: "white",
+            backgroundColor: disabled || isDownloading ? "#ccc" : "#ff9800",
+            border: "none",
+            borderRadius: "8px",
+            cursor: disabled || isDownloading ? "not-allowed" : "pointer",
+            minWidth: "180px",
+          }}
+        >
+          📂 Choose Directory
+        </button>
 
-      {progress && (
+        {selectedDirectory && directoryPath && (
+          <button
+            onClick={handleStartDownload}
+            disabled={disabled || isDownloading || !directoryPath}
+            style={{
+              padding: "12px 24px",
+              fontSize: "16px",
+              fontWeight: "bold",
+              color: "white",
+              backgroundColor:
+                disabled || isDownloading || !directoryPath
+                  ? "#ccc"
+                  : "#4caf50",
+              border: "none",
+              borderRadius: "8px",
+              cursor:
+                disabled || isDownloading || !directoryPath
+                  ? "not-allowed"
+                  : "pointer",
+              minWidth: "180px",
+            }}
+          >
+            {isDownloading ? "Downloading..." : "🚀 Start Download"}
+          </button>
+        )}
+      </div>
+
+      {/* Status */}
+      {status && (
         <div
           style={{
             textAlign: "center",
             fontSize: "14px",
-            color: "#666",
-            maxWidth: "400px",
+            color: status.startsWith("Error")
+              ? "#d32f2f"
+              : status.startsWith("✅") || status.startsWith("🎉")
+              ? "#4caf50"
+              : "#666",
+            maxWidth: "500px",
             lineHeight: "1.4",
+            padding: "8px",
+            backgroundColor: status.startsWith("Error")
+              ? "#ffebee"
+              : status.startsWith("✅") || status.startsWith("🎉")
+              ? "#f1f8e9"
+              : "transparent",
+            borderRadius: "4px",
           }}
         >
-          {progress}
+          {status}
         </div>
       )}
 
+      {/* Progress Display */}
       {downloadProgress && (
         <div
           style={{
@@ -249,7 +251,8 @@ export default function SyncButton() {
             border: "2px solid #4CAF50",
             borderRadius: "8px",
             backgroundColor: "#f9fff9",
-            minWidth: "400px",
+            width: "100%",
+            boxSizing: "border-box",
           }}
         >
           <div style={{ textAlign: "center" }}>
