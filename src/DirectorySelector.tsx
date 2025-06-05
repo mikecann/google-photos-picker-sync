@@ -192,7 +192,7 @@ export default function DirectorySelector({
           {isCheckingFiles
             ? "Checking files..."
             : selectedDirectory
-            ? `📂 ${selectedDirectory.name}`
+            ? "📂 Change Directory"
             : "📂 Choose Directory"}
         </button>
       </div>

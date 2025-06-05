@@ -33,6 +33,7 @@ export default function DownloadManager({
   const [progressId, setProgressId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [savedFiles, setSavedFiles] = useState<Set<string>>(new Set());
+  const [hasDownloaded, setHasDownloaded] = useState(false);
 
   // Poll for download progress and save files
   useEffect(() => {
@@ -54,6 +55,7 @@ export default function DownloadManager({
 
           if (progress.isComplete) {
             setIsDownloading(false);
+            setHasDownloaded(true);
             const savedCount = savedFiles.size;
             const totalFiles = savedCount + existingCount;
             setStatus(
@@ -176,6 +178,16 @@ export default function DownloadManager({
   const savedCount = savedFiles.size;
   const newFilesCount = mediaItems.length;
 
+  // Determine button text and state
+  const getButtonText = () => {
+    if (isDownloading) return "Downloading...";
+    if (newFilesCount === 0) return "Nothing to Download";
+    if (hasDownloaded && downloadProgress?.isComplete) return `🔄 Redownload ${newFilesCount} Files`;
+    return `🚀 Download ${newFilesCount} Files`;
+  };
+
+  const isButtonDisabled = disabled || isDownloading || newFilesCount === 0;
+
   return (
     <div
       style={{
@@ -212,30 +224,20 @@ export default function DownloadManager({
       >
         <button
           onClick={handleStartDownload}
-          disabled={disabled || isDownloading || newFilesCount === 0}
+          disabled={isButtonDisabled}
           style={{
             padding: "12px 24px",
             fontSize: "16px",
             fontWeight: "bold",
             color: "white",
-            backgroundColor:
-              disabled || isDownloading || newFilesCount === 0
-                ? "#ccc"
-                : "#4caf50",
+            backgroundColor: isButtonDisabled ? "#ccc" : "#4caf50",
             border: "none",
             borderRadius: "8px",
-            cursor:
-              disabled || isDownloading || newFilesCount === 0
-                ? "not-allowed"
-                : "pointer",
+            cursor: isButtonDisabled ? "not-allowed" : "pointer",
             minWidth: "200px",
           }}
         >
-          {isDownloading
-            ? "Downloading..."
-            : newFilesCount === 0
-            ? "Nothing to Download"
-            : `🚀 Download ${newFilesCount} Files`}
+          {getButtonText()}
         </button>
       </div>
 
