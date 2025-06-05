@@ -29,7 +29,9 @@ function AppContent() {
         gap: 32,
         alignItems: "center",
         marginTop: 40,
-        padding: "0 20px",
+        padding: "0 20px 40px 20px",
+        minHeight: "100vh",
+        backgroundColor: "#ffffff",
       }}
     >
       <div style={{ textAlign: "center", marginBottom: 20 }}>
@@ -58,82 +60,6 @@ function AppContent() {
           sessionId={selectedPhotos.sessionId}
         />
       )}
-
-      {/* Progress Indicator */}
-      <div
-        style={{
-          display: "flex",
-          gap: "12px",
-          marginTop: "20px",
-          padding: "16px",
-          backgroundColor: "#f5f5f5",
-          borderRadius: "8px",
-          fontSize: "14px",
-          color: "#666",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            color: isSignedIn ? "#4caf50" : "#999",
-          }}
-        >
-          {isSignedIn ? "✅" : "⭕"} Step 1: Sign In
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            color: selectedPhotos ? "#4caf50" : "#999",
-          }}
-        >
-          {selectedPhotos ? "✅" : "⭕"} Step 2: Select Photos
-        </div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            color: "#999",
-          }}
-        >
-          ⭕ Step 3: Download
-        </div>
-      </div>
-
-      {/* Help Text */}
-      <div
-        style={{
-          maxWidth: "600px",
-          textAlign: "center",
-          fontSize: "14px",
-          color: "#888",
-          lineHeight: "1.5",
-          marginTop: "20px",
-        }}
-      >
-        {!isSignedIn && (
-          <p>
-            🔐 Start by signing in with your Google account to access your
-            photos.
-          </p>
-        )}
-        {isSignedIn && !selectedPhotos && (
-          <p>
-            📸 Now you can select which photos you want to sync from Google
-            Photos.
-          </p>
-        )}
-        {selectedPhotos && (
-          <p>
-            📁 Choose where to save your {selectedPhotos.mediaItems.length}{" "}
-            selected photos and start the download.
-          </p>
-        )}
-      </div>
     </div>
   );
 }
