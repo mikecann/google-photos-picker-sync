@@ -122,6 +122,137 @@ function PickerOverlay({
   );
 }
 
+// New overlay for fetching progress
+function FetchingOverlay({
+  isOpen,
+  currentPage,
+  totalItemsFetched,
+  isComplete,
+}: {
+  isOpen: boolean;
+  currentPage: number;
+  totalItemsFetched: number;
+  isComplete: boolean;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: "white",
+          borderRadius: "12px",
+          padding: "32px",
+          maxWidth: "450px",
+          textAlign: "center",
+          boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "48px",
+            marginBottom: "16px",
+          }}
+        >
+          {isComplete ? "✅" : "📄"}
+        </div>
+
+        <h3 style={{ margin: "0 0 16px 0", color: "#333" }}>
+          {isComplete ? "Fetching Complete!" : "Fetching Your Photos"}
+        </h3>
+
+        <div style={{ marginBottom: "24px" }}>
+          <p style={{ margin: "0 0 8px 0", color: "#666", fontSize: "16px" }}>
+            Page: <strong>{currentPage}</strong>
+          </p>
+          <p style={{ margin: "0 0 16px 0", color: "#666", fontSize: "16px" }}>
+            Photos collected:{" "}
+            <strong>{totalItemsFetched.toLocaleString()}</strong>
+          </p>
+
+          {!isComplete && (
+            <div style={{ marginTop: "16px" }}>
+              {/* Indeterminate progress bar */}
+              <div
+                style={{
+                  width: "100%",
+                  height: "8px",
+                  backgroundColor: "#e0e0e0",
+                  borderRadius: "4px",
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    height: "100%",
+                    width: "30%",
+                    backgroundColor: "#4285f4",
+                    borderRadius: "4px",
+                    animation: "indeterminate 2s infinite",
+                  }}
+                />
+              </div>
+              <p
+                style={{
+                  margin: "8px 0 0 0",
+                  color: "#999",
+                  fontSize: "12px",
+                  fontStyle: "italic",
+                }}
+              >
+                Google doesn't tell us the total, so we fetch page by page...
+              </p>
+            </div>
+          )}
+        </div>
+
+        {!isComplete && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+            }}
+          >
+            <div
+              className="spinner"
+              style={{
+                width: "16px",
+                height: "16px",
+                border: "2px solid #e0e0e0",
+                borderTop: "2px solid #4285f4",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }}
+            ></div>
+            <span style={{ color: "#666", fontSize: "14px" }}>
+              Fetching page {currentPage}...
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function PhotoSelector({
   onPhotosSelected,
   disabled,
@@ -132,6 +263,14 @@ export default function PhotoSelector({
   const [showOverlay, setShowOverlay] = useState(false);
   const [pickerWindow, setPickerWindow] = useState<Window | null>(null);
   const cancelledRef = useRef(false);
+
+  // New state for fetching progress
+  const [showFetchingOverlay, setShowFetchingOverlay] = useState(false);
+  const [fetchProgress, setFetchProgress] = useState({
+    currentPage: 0,
+    totalItemsFetched: 0,
+    isComplete: false,
+  });
 
   const handleSelectPhotos = async () => {
     if (!oauthToken) {
@@ -242,11 +381,26 @@ export default function PhotoSelector({
         return;
       }
 
-      // Fetch the selected media items
+      // Show fetching overlay and fetch the selected media items
+      setShowFetchingOverlay(true);
       setStatus("Fetching selected media items...");
-      const mediaItems = await fetchPickedMediaItems({ oauthToken, sessionId });
+
+      const mediaItems = await fetchPickedMediaItems({
+        oauthToken,
+        sessionId,
+        onProgress: (progress) => {
+          setFetchProgress(progress);
+          if (progress.isComplete) {
+            // Keep overlay open briefly to show completion
+            setTimeout(() => {
+              setShowFetchingOverlay(false);
+            }, 1500);
+          }
+        },
+      });
 
       if (!mediaItems || mediaItems.length === 0) {
+        setShowFetchingOverlay(false);
         setStatus("No media items were selected.");
         setIsSelecting(false);
         return;
@@ -258,6 +412,7 @@ export default function PhotoSelector({
     } catch (error) {
       console.error("Photo selection error:", error);
       setShowOverlay(false);
+      setShowFetchingOverlay(false);
       if (pickerWindow && !pickerWindow.closed) {
         pickerWindow.close();
       }
@@ -278,6 +433,7 @@ export default function PhotoSelector({
     cancelledRef.current = true; // Set cancellation flag
 
     setShowOverlay(false);
+    setShowFetchingOverlay(false);
     if (pickerWindow && !pickerWindow.closed) {
       pickerWindow.close();
     }
@@ -293,6 +449,12 @@ export default function PhotoSelector({
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+          }
+          
+          @keyframes indeterminate {
+            0% { transform: translateX(-100%); }
+            50% { transform: translateX(0%); }
+            100% { transform: translateX(100%); }
           }
         `}
       </style>
@@ -371,6 +533,14 @@ export default function PhotoSelector({
         isOpen={showOverlay}
         onCancel={handleCancelSelection}
         status={status}
+      />
+
+      {/* Fetching Progress Overlay */}
+      <FetchingOverlay
+        isOpen={showFetchingOverlay}
+        currentPage={fetchProgress.currentPage}
+        totalItemsFetched={fetchProgress.totalItemsFetched}
+        isComplete={fetchProgress.isComplete}
       />
     </>
   );

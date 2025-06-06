@@ -149,9 +149,15 @@ export async function pollSession({
 export async function fetchPickedMediaItems({
   oauthToken,
   sessionId,
+  onProgress,
 }: {
   oauthToken: string;
   sessionId: string;
+  onProgress?: (progress: {
+    currentPage: number;
+    totalItemsFetched: number;
+    isComplete: boolean;
+  }) => void;
 }) {
   if (!oauthToken || !sessionId) {
     throw new Error(
@@ -159,21 +165,67 @@ export async function fetchPickedMediaItems({
     );
   }
 
-  const res = await fetch(
-    `https://photospicker.googleapis.com/v1/mediaItems?sessionId=${sessionId}`,
-    {
+  const allMediaItems: MediaItem[] = [];
+  let pageToken: string | undefined = undefined;
+  let pageCount = 0;
+
+  do {
+    pageCount++;
+    console.log(`Fetching page ${pageCount} of media items...`);
+
+    // Update progress - fetching current page
+    onProgress?.({
+      currentPage: pageCount,
+      totalItemsFetched: allMediaItems.length,
+      isComplete: false,
+    });
+
+    // Build URL with pagination parameters
+    const url = new URL("https://photospicker.googleapis.com/v1/mediaItems");
+    url.searchParams.set("sessionId", sessionId);
+    url.searchParams.set("pageSize", "100"); // Maximum allowed page size
+    if (pageToken) {
+      url.searchParams.set("pageToken", pageToken);
+    }
+
+    const res = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${oauthToken}`,
       },
+    });
+
+    if (!res.ok) {
+      throw new Error(
+        `Failed to fetch picked media items for session '${sessionId}' (page ${pageCount}): ${res.status} ${res.statusText}`
+      );
     }
+
+    const data = await res.json();
+    const mediaItems = data.mediaItems || [];
+
+    console.log(`Page ${pageCount}: Retrieved ${mediaItems.length} items`);
+    allMediaItems.push(...mediaItems);
+
+    // Update progress - page completed
+    onProgress?.({
+      currentPage: pageCount,
+      totalItemsFetched: allMediaItems.length,
+      isComplete: false,
+    });
+
+    // Get the next page token
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  // Final progress update
+  onProgress?.({
+    currentPage: pageCount,
+    totalItemsFetched: allMediaItems.length,
+    isComplete: true,
+  });
+
+  console.log(
+    `✅ Fetched all ${allMediaItems.length} media items across ${pageCount} pages`
   );
-
-  if (!res.ok) {
-    throw new Error(
-      `Failed to fetch picked media items for session '${sessionId}': ${res.status} ${res.statusText}`
-    );
-  }
-
-  const data = await res.json();
-  return (data.mediaItems || []) as MediaItem[];
+  return allMediaItems as MediaItem[];
 }
