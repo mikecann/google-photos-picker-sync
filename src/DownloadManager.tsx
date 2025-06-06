@@ -21,6 +21,17 @@ interface DownloadProgress {
   files: Array<{ filename: string; size: number; ready: boolean }>;
 }
 
+// Utility function to format bytes into human-readable sizes
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}
+
 export default function DownloadManager({
   mediaItems,
   oauthToken,
@@ -36,6 +47,15 @@ export default function DownloadManager({
   const [progressId, setProgressId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [savedFiles, setSavedFiles] = useState<Set<string>>(new Set());
+
+  // Calculate total downloaded size from saved files
+  const getTotalDownloadedSize = () => {
+    if (!downloadProgress) return 0;
+
+    return downloadProgress.files
+      .filter((file) => savedFiles.has(file.filename))
+      .reduce((total, file) => total + file.size, 0);
+  };
 
   // Poll for download progress and save files
   useEffect(() => {
@@ -59,8 +79,11 @@ export default function DownloadManager({
             setIsDownloading(false);
             const savedCount = savedFiles.size;
             const totalFiles = savedCount + existingCount;
+            const totalSize = getTotalDownloadedSize();
             setStatus(
-              `🎉 Download complete! ${savedCount} new files saved, ${existingCount} files already existed. Total: ${totalFiles} files in your directory.`
+              `🎉 Download complete! ${savedCount} new files saved (${formatFileSize(
+                totalSize
+              )}), ${existingCount} files already existed. Total: ${totalFiles} files in your directory.`
             );
 
             // Cleanup server-side temporary files
@@ -189,6 +212,7 @@ export default function DownloadManager({
 
   const savedCount = savedFiles.size;
   const newFilesCount = mediaItems.length;
+  const totalDownloadedSize = getTotalDownloadedSize();
 
   // Determine button text and state
   const getButtonText = () => {
@@ -302,9 +326,13 @@ export default function DownloadManager({
             <div style={{ fontWeight: "bold", marginBottom: "8px" }}>
               📥 Download Progress
             </div>
-            <div style={{ fontSize: "14px", color: "#666" }}>
+            <div style={{ fontSize: "14px", color: "#666", lineHeight: "1.4" }}>
               {savedCount} of {downloadProgress.total} new files saved to
               directory
+              <br />
+              <span style={{ fontWeight: "bold", color: "#4CAF50" }}>
+                📊 {formatFileSize(totalDownloadedSize)} saved
+              </span>
             </div>
           </div>
 
