@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
+import type { MediaItem } from "./types";
 
 interface DownloadManagerProps {
-  mediaItems: any[];
+  mediaItems: MediaItem[];
   oauthToken: string;
   sessionId: string;
   selectedDirectory: FileSystemDirectoryHandle;
   existingCount: number;
   disabled?: boolean;
+  onDownloadComplete?: () => void;
 }
 
 interface DownloadProgress {
@@ -26,6 +28,7 @@ export default function DownloadManager({
   selectedDirectory,
   existingCount,
   disabled,
+  onDownloadComplete,
 }: DownloadManagerProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] =
@@ -70,6 +73,10 @@ export default function DownloadManager({
             } catch (error) {
               console.warn("Failed to cleanup temporary files:", error);
             }
+
+            if (onDownloadComplete) {
+              onDownloadComplete();
+            }
           }
         }
       } catch (error) {
@@ -79,7 +86,14 @@ export default function DownloadManager({
 
     const interval = setInterval(pollProgressAndSave, 1000);
     return () => clearInterval(interval);
-  }, [progressId, isDownloading, selectedDirectory, savedFiles, existingCount]);
+  }, [
+    progressId,
+    isDownloading,
+    selectedDirectory,
+    savedFiles,
+    existingCount,
+    onDownloadComplete,
+  ]);
 
   const saveFileToDirectory = async (filename: string) => {
     if (!selectedDirectory || !progressId) return;

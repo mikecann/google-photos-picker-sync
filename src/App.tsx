@@ -5,43 +5,53 @@ import AuthButton from "./AuthButton";
 import PhotoSelector from "./PhotoSelector";
 import DirectorySelector from "./DirectorySelector";
 import DownloadManager from "./DownloadManager";
+import type { MediaItem } from "./types";
 
 function AppContent() {
   const { isSignedIn } = useAuth();
   const [selectedPhotos, setSelectedPhotos] = useState<{
-    mediaItems: any[];
+    mediaItems: MediaItem[];
     oauthToken: string;
     sessionId: string;
   } | null>(null);
 
   const [directoryInfo, setDirectoryInfo] = useState<{
     directory: FileSystemDirectoryHandle;
-    filteredItems: any[];
+    filteredItems: MediaItem[];
     existingCount: number;
   } | null>(null);
+
+  const [downloadComplete, setDownloadComplete] = useState(false);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const handlePhotosSelected = (
-    mediaItems: any[],
+    mediaItems: MediaItem[],
     oauthToken: string,
     sessionId: string
   ) => {
     setSelectedPhotos({ mediaItems, oauthToken, sessionId });
-    // Reset directory info when new photos are selected
+    // Reset directory info and download completion when new photos are selected
     setDirectoryInfo(null);
+    setDownloadComplete(false);
     // Scroll to step 3 (center it)
     setTimeout(() => scrollToStep(3), 100);
   };
 
   const handleDirectorySelected = (
     directory: FileSystemDirectoryHandle,
-    filteredItems: any[],
+    filteredItems: MediaItem[],
     existingCount: number
   ) => {
     setDirectoryInfo({ directory, filteredItems, existingCount });
+    // Reset download completion when new directory is selected
+    setDownloadComplete(false);
     // Scroll to step 4 (center it)
     setTimeout(() => scrollToStep(4), 100);
+  };
+
+  const handleDownloadComplete = () => {
+    setDownloadComplete(true);
   };
 
   const scrollToStep = (stepNumber: number) => {
@@ -74,7 +84,7 @@ function AppContent() {
   const step1Complete = isSignedIn;
   const step2Complete = !!selectedPhotos;
   const step3Complete = !!directoryInfo;
-  const step4Complete = false; // We could track download completion if needed
+  const step4Complete = downloadComplete;
 
   // Navigation logic - can always go back, can only go forward to available steps
   const canNavigateToStep = (stepNumber: number) => {
@@ -329,6 +339,7 @@ function AppContent() {
                   sessionId={selectedPhotos!.sessionId}
                   selectedDirectory={directoryInfo.directory}
                   existingCount={directoryInfo.existingCount}
+                  onDownloadComplete={handleDownloadComplete}
                 />
               ) : (
                 <div
