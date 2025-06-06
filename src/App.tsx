@@ -22,8 +22,62 @@ function AppContent() {
   } | null>(null);
 
   const [downloadComplete, setDownloadComplete] = useState(false);
+  const [baseUrlTimer, setBaseUrlTimer] = useState<{
+    startTime: number;
+    timeRemaining: number;
+  } | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // Timer countdown effect for base URL expiration
+  useEffect(() => {
+    if (!baseUrlTimer?.startTime) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = (now - baseUrlTimer.startTime) / 1000; // seconds elapsed
+      const remaining = Math.max(0, 3600 - elapsed); // 60 minutes = 3600 seconds
+
+      setBaseUrlTimer((prev) =>
+        prev ? { ...prev, timeRemaining: remaining } : null
+      );
+
+      if (remaining <= 0) {
+        // Base URLs have expired
+        setSelectedPhotos(null);
+        setDirectoryInfo(null);
+        setDownloadComplete(false);
+        setBaseUrlTimer(null);
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [baseUrlTimer?.startTime]);
+
+  // Format time as MM:SS
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  // Get timer color based on time remaining
+  const getTimerColor = (seconds: number) => {
+    if (seconds > 1800) return "#4caf50"; // Green (>30 min)
+    if (seconds > 600) return "#ff9800"; // Orange (>10 min)
+    return "#f44336"; // Red (≤10 min)
+  };
+
+  // Get timer warning message
+  const getTimerWarning = (seconds: number) => {
+    if (seconds <= 300) return "⚠️ Only 5 minutes left!";
+    if (seconds <= 600) return "⚠️ Less than 10 minutes remaining";
+    if (seconds <= 1800) return "⏰ Less than 30 minutes remaining";
+    return null;
+  };
 
   const handlePhotosSelected = (
     mediaItems: MediaItem[],
@@ -34,6 +88,11 @@ function AppContent() {
     // Reset directory info and download completion when new photos are selected
     setDirectoryInfo(null);
     setDownloadComplete(false);
+    // Start the 60-minute timer for base URL expiration
+    setBaseUrlTimer({
+      startTime: Date.now(),
+      timeRemaining: 3600,
+    });
     // Scroll to step 3 (center it)
     setTimeout(() => scrollToStep(3), 100);
   };
@@ -152,6 +211,75 @@ function AppContent() {
             Sync your Google Photos to your computer in 4 easy steps
           </p>
         </div>
+
+        {/* Base URL Timer Banner - Shows for Steps 3 & 4 */}
+        {baseUrlTimer && selectedPhotos && (
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "600px",
+              marginBottom: 15,
+              padding: "12px 16px",
+              border: `2px solid ${getTimerColor(baseUrlTimer.timeRemaining)}`,
+              borderRadius: "8px",
+              backgroundColor: "#fff",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              textAlign: "center",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "12px",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontWeight: "bold",
+                    fontSize: "14px",
+                    marginBottom: "2px",
+                  }}
+                >
+                  ⏱️ Google Photos Access Timer
+                </div>
+                <div style={{ fontSize: "10px", color: "#666" }}>
+                  Google limits download access to 60 minutes
+                </div>
+              </div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: "bold",
+                  color: getTimerColor(baseUrlTimer.timeRemaining),
+                  fontFamily: "monospace",
+                }}
+              >
+                {formatTime(baseUrlTimer.timeRemaining)}
+              </div>
+            </div>
+            {getTimerWarning(baseUrlTimer.timeRemaining) && (
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: getTimerColor(baseUrlTimer.timeRemaining),
+                  fontWeight: "bold",
+                  marginTop: "8px",
+                  padding: "4px 8px",
+                  backgroundColor: `${getTimerColor(
+                    baseUrlTimer.timeRemaining
+                  )}15`,
+                  borderRadius: "4px",
+                  display: "inline-block",
+                }}
+              >
+                {getTimerWarning(baseUrlTimer.timeRemaining)}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Progress indicator */}
         <div
