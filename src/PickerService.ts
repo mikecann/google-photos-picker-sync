@@ -40,9 +40,11 @@ export async function createPickerSession({
 export async function pollSession({
   oauthToken,
   sessionId,
+  onCancel,
 }: {
   oauthToken: string;
   sessionId: string;
+  onCancel?: () => boolean; // Function that returns true if polling should be cancelled
 }) {
   if (!oauthToken || !sessionId) {
     throw new Error(
@@ -50,11 +52,18 @@ export async function pollSession({
     );
   }
 
-  let pollInterval = 2000; // Start with 2 seconds
+  let pollInterval = 1500; // Start with 1.5 seconds
+  const minPollInterval = 1000; // Minimum 1 second between polls
   let totalTimeout = 300000; // 5 minutes total timeout
   let elapsed = 0;
 
   while (elapsed < totalTimeout) {
+    // Check if operation was cancelled
+    if (onCancel && onCancel()) {
+      console.log("Polling cancelled by user");
+      return false;
+    }
+
     const res = await fetch(
       `https://photospicker.googleapis.com/v1/sessions/${sessionId}`,
       {
@@ -72,24 +81,66 @@ export async function pollSession({
 
     const data = await res.json();
 
+    console.log("Polling response:", {
+      mediaItemsSet: data.mediaItemsSet,
+      pollingConfig: data.pollingConfig,
+    });
+
     // Check if user has finished selecting media
     if (data.mediaItemsSet === true) {
       return true;
     }
 
-    // Update polling configuration if provided by the API
+    // Update polling configuration if provided by the API, but enforce minimum
     if (data.pollingConfig) {
       if (data.pollingConfig.pollInterval) {
-        pollInterval = data.pollingConfig.pollInterval;
+        const apiInterval = Number(data.pollingConfig.pollInterval);
+        if (!isNaN(apiInterval) && apiInterval > 0) {
+          pollInterval = Math.max(apiInterval, minPollInterval);
+        } else {
+          console.warn(
+            "Invalid polling interval from API:",
+            data.pollingConfig.pollInterval,
+            "using default"
+          );
+          pollInterval = Math.max(pollInterval, minPollInterval);
+        }
       }
       if (data.pollingConfig.timeoutIn) {
-        totalTimeout = data.pollingConfig.timeoutIn;
+        const apiTimeout = Number(data.pollingConfig.timeoutIn);
+        if (!isNaN(apiTimeout) && apiTimeout > 0) {
+          totalTimeout = apiTimeout;
+        } else {
+          console.warn(
+            "Invalid timeout from API:",
+            data.pollingConfig.timeoutIn,
+            "using default"
+          );
+        }
       }
     }
+
+    // Ensure pollInterval is always a valid number
+    if (isNaN(pollInterval) || pollInterval <= 0) {
+      console.warn(
+        "Invalid pollInterval detected:",
+        pollInterval,
+        "resetting to minimum"
+      );
+      pollInterval = minPollInterval;
+    }
+
+    console.log(`Polling in ${pollInterval}ms...`);
 
     // Wait before next poll
     await new Promise((resolve) => setTimeout(resolve, pollInterval));
     elapsed += pollInterval;
+
+    // Check cancellation again after the wait
+    if (onCancel && onCancel()) {
+      console.log("Polling cancelled by user during wait");
+      return false;
+    }
   }
 
   return false; // Timed out
