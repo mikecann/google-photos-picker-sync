@@ -224,7 +224,7 @@ function AppContent() {
       <div
         style={{
           width: "100%",
-          maxWidth: "1200px", // Increased for 5 steps
+          maxWidth: "600px", // Responsive max width
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -316,7 +316,7 @@ function AppContent() {
             justifyContent: "center",
             marginBottom: 30,
             width: "100%",
-            maxWidth: "900px",
+            maxWidth: "100%",
           }}
         >
           <div
@@ -411,14 +411,14 @@ function AppContent() {
             borderRadius: "12px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
             width: "100%",
-            maxWidth: "calc(100vw - 40px)", // Ensure it doesn't exceed viewport
+            maxWidth: "100%", // Use full available width within parent constraints
           }}
         >
           <div
             ref={scrollContainerRef}
             style={{
               display: "flex",
-              gap: 24,
+              gap: 16,
               padding: "20px",
               overflowX: "auto",
               scrollBehavior: "smooth",
@@ -427,18 +427,18 @@ function AppContent() {
               msOverflowStyle: "none",
               backgroundColor: "#f8f9fa",
               // Make the scroll container wide enough for all steps plus centering space
-              width: "calc(100% + 1000px)", // Extra space for centering (2 * 500px spacers)
-              marginLeft: "-500px", // Offset to allow centering
+              width: "calc(100% + 800px)", // Reduced extra space for smaller screens
+              marginLeft: "-400px", // Reduced offset
             }}
           >
             {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "500px", flexShrink: 0 }} />
+            <div style={{ minWidth: "400px", flexShrink: 0 }} />
 
             {/* Step 1: Authentication */}
             <div
               style={{
-                minWidth: "350px",
-                maxWidth: "350px",
+                minWidth: "280px",
+                maxWidth: "320px",
                 flexShrink: 0,
                 opacity: 1,
                 transition: "opacity 0.3s ease",
@@ -450,8 +450,8 @@ function AppContent() {
             {/* Step 2: Photo Selection */}
             <div
               style={{
-                minWidth: "350px",
-                maxWidth: "350px",
+                minWidth: "280px",
+                maxWidth: "320px",
                 flexShrink: 0,
                 opacity: step1Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -466,8 +466,8 @@ function AppContent() {
             {/* Step 3: Directory Selection */}
             <div
               style={{
-                minWidth: "350px",
-                maxWidth: "350px",
+                minWidth: "280px",
+                maxWidth: "320px",
                 flexShrink: 0,
                 opacity: step2Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -483,8 +483,8 @@ function AppContent() {
             {/* Step 4: Download Settings */}
             <div
               style={{
-                minWidth: "350px",
-                maxWidth: "350px",
+                minWidth: "280px",
+                maxWidth: "320px",
                 flexShrink: 0,
                 opacity: step3Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -525,8 +525,8 @@ function AppContent() {
             {/* Step 5: Download */}
             <div
               style={{
-                minWidth: "350px",
-                maxWidth: "350px",
+                minWidth: "280px",
+                maxWidth: "320px",
                 flexShrink: 0,
                 opacity: step4Complete ? 1 : 0.4,
                 transition: "opacity 0.3s ease",
@@ -584,7 +584,7 @@ function AppContent() {
             </div>
 
             {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "500px", flexShrink: 0 }} />
+            <div style={{ minWidth: "400px", flexShrink: 0 }} />
           </div>
 
           {/* Scroll indicator */}
