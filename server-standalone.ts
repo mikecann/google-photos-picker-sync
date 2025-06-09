@@ -37,6 +37,16 @@ interface SessionData {
   oauthToken: string;
   sessionId: string;
   mediaItems: MediaItem[];
+  downloadSettings?: {
+    includePhotos: boolean;
+    includeVideos: boolean;
+    imageQuality: "original" | "high" | "medium" | "low";
+    imageMaxWidth?: number;
+    imageMaxHeight?: number;
+    imageCrop: boolean;
+    videoQuality: "original" | "high" | "thumbnail";
+    videoRemoveOverlay: boolean;
+  };
   timestamp: string;
 }
 
@@ -63,6 +73,76 @@ const staticFiles = new Map([
   [`/assets/${cssFile}`, `./dist/assets/${cssFile}`],
 ]);
 
+// Generate the correct Google Photos download URL based on settings
+function generateDownloadUrl(
+  baseUrl: string,
+  mediaType: "PHOTO" | "VIDEO",
+  mimeType: string,
+  settings?: SessionData["downloadSettings"]
+): string {
+  if (!settings) {
+    // Fallback to original logic
+    const isVideo = mediaType === "VIDEO" || mimeType.startsWith("video/");
+    return `${baseUrl}=${isVideo ? "dv" : "d"}`;
+  }
+
+  const isVideo = mediaType === "VIDEO" || mimeType.startsWith("video/");
+
+  if (isVideo) {
+    // Video download settings
+    if (settings.videoQuality === "thumbnail") {
+      // Download thumbnail
+      let params = "w1280-h720";
+      if (settings.videoRemoveOverlay) {
+        params += "-no";
+      }
+      return `${baseUrl}=${params}`;
+    } else {
+      // Download full video (original or high)
+      return `${baseUrl}=dv`;
+    }
+  } else {
+    // Image download settings
+    if (settings.imageQuality === "original") {
+      return `${baseUrl}=d`;
+    }
+
+    // Custom or preset quality
+    let width: number, height: number;
+
+    if (settings.imageMaxWidth && settings.imageMaxHeight) {
+      // Custom dimensions
+      width = settings.imageMaxWidth;
+      height = settings.imageMaxHeight;
+    } else {
+      // Preset quality levels
+      switch (settings.imageQuality) {
+        case "high":
+          width = 2048;
+          height = 2048;
+          break;
+        case "medium":
+          width = 1024;
+          height = 1024;
+          break;
+        case "low":
+          width = 512;
+          height = 512;
+          break;
+        default:
+          return `${baseUrl}=d`; // Fallback to original
+      }
+    }
+
+    let params = `w${width}-h${height}`;
+    if (settings.imageCrop) {
+      params += "-c";
+    }
+
+    return `${baseUrl}=${params}`;
+  }
+}
+
 async function downloadFile(
   url: string,
   filepath: string,
@@ -87,7 +167,7 @@ async function downloadFile(
 }
 
 async function processDownloads(sessionData: SessionData, progressId: string) {
-  const { oauthToken, mediaItems } = sessionData;
+  const { oauthToken, mediaItems, downloadSettings } = sessionData;
 
   // Create temporary directory for this download session
   const tempDir = join(tmpdir(), `google-photos-sync-${progressId}`);
@@ -127,10 +207,13 @@ async function processDownloads(sessionData: SessionData, progressId: string) {
 
     // Download the file
     try {
-      // Use correct parameter based on media type
-      // For videos: use =dv (download video), for photos: use =d (download)
-      const isVideo = item.type === "VIDEO" || mediaFile.mimeType.startsWith("video/");
-      const downloadUrl = `${baseUrl}=${isVideo ? "dv" : "d"}`;
+      // Generate URL based on settings and media type
+      const downloadUrl = generateDownloadUrl(
+        baseUrl,
+        item.type,
+        mediaFile.mimeType,
+        downloadSettings
+      );
       const fileSize = await downloadFile(downloadUrl, targetPath, oauthToken);
 
       progress.downloaded++;

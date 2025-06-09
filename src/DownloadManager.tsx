@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import type { MediaItem } from "./types";
+import type { MediaItem, DownloadSettings } from "./types";
 
 interface DownloadManagerProps {
   mediaItems: MediaItem[];
+  downloadSettings: DownloadSettings;
   oauthToken: string;
   sessionId: string;
   selectedDirectory: FileSystemDirectoryHandle;
@@ -34,6 +35,7 @@ function formatFileSize(bytes: number): string {
 
 export default function DownloadManager({
   mediaItems,
+  downloadSettings,
   oauthToken,
   sessionId,
   selectedDirectory,
@@ -178,6 +180,7 @@ export default function DownloadManager({
         oauthToken,
         sessionId,
         mediaItems: mediaItems, // Only download new files (already filtered)
+        downloadSettings,
         timestamp: new Date().toISOString(),
       };
 
@@ -244,7 +247,7 @@ export default function DownloadManager({
     >
       <div style={{ textAlign: "center" }}>
         <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
-          🚀 Step 4: Download
+          🚀 Step 5: Download
         </h3>
         <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
           {newFilesCount === 0

@@ -4,8 +4,12 @@ import { useAuth } from "./GoogleAuthProvider";
 import AuthButton from "./AuthButton";
 import PhotoSelector from "./PhotoSelector";
 import DirectorySelector from "./DirectorySelector";
+import DownloadSettings from "./DownloadSettings";
 import DownloadManager from "./DownloadManager";
-import type { MediaItem } from "./types";
+import type {
+  MediaItem,
+  DownloadSettings as DownloadSettingsType,
+} from "./types";
 
 function AppContent() {
   const { isSignedIn } = useAuth();
@@ -19,6 +23,11 @@ function AppContent() {
     directory: FileSystemDirectoryHandle;
     filteredItems: MediaItem[];
     existingCount: number;
+  } | null>(null);
+
+  const [downloadSettings, setDownloadSettings] = useState<{
+    settings: DownloadSettingsType;
+    filteredItems: MediaItem[];
   } | null>(null);
 
   const [downloadComplete, setDownloadComplete] = useState(false);
@@ -103,10 +112,27 @@ function AppContent() {
     existingCount: number
   ) => {
     setDirectoryInfo({ directory, filteredItems, existingCount });
-    // Reset download completion when new directory is selected
+    // Reset download settings and completion when new directory is selected
+    setDownloadSettings(null);
     setDownloadComplete(false);
-    // Scroll to step 4 (center it)
+    // Scroll to step 4 (settings)
     setTimeout(() => scrollToStep(4), 100);
+  };
+
+  const handleDownloadSettingsConfirmed = (
+    settings: DownloadSettingsType,
+    filteredItems: MediaItem[]
+  ) => {
+    setDownloadSettings({ settings, filteredItems });
+    // Reset download completion when new settings are applied
+    setDownloadComplete(false);
+    // Scroll to step 5 (download)
+    setTimeout(() => scrollToStep(5), 100);
+  };
+
+  const handleDownloadSettingsCancel = () => {
+    // Don't change anything, just stay on settings step
+    // User can modify directory or settings again
   };
 
   const handleDownloadComplete = () => {
@@ -143,14 +169,16 @@ function AppContent() {
   const step1Complete = isSignedIn;
   const step2Complete = !!selectedPhotos;
   const step3Complete = !!directoryInfo;
-  const step4Complete = downloadComplete;
+  const step4Complete = !!downloadSettings; // Settings step
+  const step5Complete = downloadComplete;
 
   // Navigation logic - can always go back, can only go forward to available steps
   const canNavigateToStep = (stepNumber: number) => {
     if (stepNumber === 1) return true; // Always can go to step 1
     if (stepNumber === 2) return step1Complete; // Can go to step 2 if signed in
     if (stepNumber === 3) return step2Complete; // Can go to step 3 if photos selected
-    if (stepNumber === 4) return step3Complete; // Can go to step 4 if directory selected
+    if (stepNumber === 4) return step3Complete; // Can go to settings if directory selected
+    if (stepNumber === 5) return step4Complete; // Can go to step 5 if settings confirmed
     return false;
   };
 
@@ -196,7 +224,7 @@ function AppContent() {
       <div
         style={{
           width: "100%",
-          maxWidth: "900px", // Set a reasonable max width
+          maxWidth: "1200px", // Increased for 5 steps
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -208,7 +236,7 @@ function AppContent() {
             Google Photos Picker Sync
           </h1>
           <p style={{ margin: 0, color: "#666", fontSize: "16px" }}>
-            Sync your Google Photos to your computer in 4 easy steps
+            Sync your Google Photos to your computer in 5 easy steps
           </p>
         </div>
 
@@ -288,29 +316,31 @@ function AppContent() {
             justifyContent: "center",
             marginBottom: 30,
             width: "100%",
-            maxWidth: "600px",
+            maxWidth: "900px",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "12px",
+              gap: "6px",
               width: "100%",
             }}
           >
-            {[1, 2, 3, 4].map((step, index) => {
+            {[1, 2, 3, 4, 5].map((step, index) => {
               const isComplete =
                 (step === 1 && step1Complete) ||
                 (step === 2 && step2Complete) ||
                 (step === 3 && step3Complete) ||
-                (step === 4 && step4Complete);
+                (step === 4 && step4Complete) ||
+                (step === 5 && step5Complete);
 
               const isActive =
                 (step === 1 && !step1Complete) ||
                 (step === 2 && step1Complete && !step2Complete) ||
                 (step === 3 && step2Complete && !step3Complete) ||
-                (step === 4 && step3Complete && !step4Complete);
+                (step === 4 && step3Complete && !step4Complete) ||
+                (step === 5 && step4Complete && !step5Complete);
 
               const isClickable = canNavigateToStep(step);
 
@@ -355,9 +385,9 @@ function AppContent() {
                       }
                     }}
                   >
-                    {isComplete ? "✓" : step}
+                    {isComplete ? "✓" : step === 4 ? "⚙️" : step}
                   </div>
-                  {index < 3 && (
+                  {index < 4 && (
                     <div
                       style={{
                         flex: 1,
@@ -397,12 +427,12 @@ function AppContent() {
               msOverflowStyle: "none",
               backgroundColor: "#f8f9fa",
               // Make the scroll container wide enough for all steps plus centering space
-              width: "calc(100% + 700px)", // Extra space for centering (2 * 350px spacers)
-              marginLeft: "-350px", // Offset to allow centering
+              width: "calc(100% + 1000px)", // Extra space for centering (2 * 500px spacers)
+              marginLeft: "-500px", // Offset to allow centering
             }}
           >
             {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "350px", flexShrink: 0 }} />
+            <div style={{ minWidth: "500px", flexShrink: 0 }} />
 
             {/* Step 1: Authentication */}
             <div
@@ -450,7 +480,7 @@ function AppContent() {
               />
             </div>
 
-            {/* Step 4: Download */}
+            {/* Step 4: Download Settings */}
             <div
               style={{
                 minWidth: "350px",
@@ -461,8 +491,51 @@ function AppContent() {
               }}
             >
               {directoryInfo ? (
-                <DownloadManager
+                <DownloadSettings
                   mediaItems={directoryInfo.filteredItems}
+                  onSettingsConfirmed={handleDownloadSettingsConfirmed}
+                  onCancel={handleDownloadSettingsCancel}
+                  disabled={!directoryInfo}
+                />
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "16px",
+                    padding: "24px",
+                    border: "2px solid #e0e0e0",
+                    borderRadius: "12px",
+                    backgroundColor: "#fafafa",
+                  }}
+                >
+                  <div style={{ textAlign: "center" }}>
+                    <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
+                      ⚙️ Step 4: Download Settings
+                    </h3>
+                    <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
+                      Complete Step 3 to configure download settings
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Step 5: Download */}
+            <div
+              style={{
+                minWidth: "350px",
+                maxWidth: "350px",
+                flexShrink: 0,
+                opacity: step4Complete ? 1 : 0.4,
+                transition: "opacity 0.3s ease",
+              }}
+            >
+              {downloadSettings && directoryInfo ? (
+                <DownloadManager
+                  mediaItems={downloadSettings.filteredItems}
+                  downloadSettings={downloadSettings.settings}
                   oauthToken={selectedPhotos!.oauthToken}
                   sessionId={selectedPhotos!.sessionId}
                   selectedDirectory={directoryInfo.directory}
@@ -484,10 +557,10 @@ function AppContent() {
                 >
                   <div style={{ textAlign: "center" }}>
                     <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
-                      🚀 Step 4: Download
+                      🚀 Step 5: Download
                     </h3>
                     <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-                      Complete Step 3 to enable downloads
+                      Complete Step 4 to enable downloads
                     </p>
                   </div>
                   <button
@@ -511,7 +584,7 @@ function AppContent() {
             </div>
 
             {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "350px", flexShrink: 0 }} />
+            <div style={{ minWidth: "500px", flexShrink: 0 }} />
           </div>
 
           {/* Scroll indicator */}
@@ -529,12 +602,13 @@ function AppContent() {
               backdropFilter: "blur(4px)",
             }}
           >
-            {[1, 2, 3, 4].map((step) => {
+            {[1, 2, 3, 4, 5].map((step) => {
               const isCurrentStep =
                 (step === 1 && !step1Complete) ||
                 (step === 2 && step1Complete && !step2Complete) ||
                 (step === 3 && step2Complete && !step3Complete) ||
-                (step === 4 && step3Complete);
+                (step === 4 && step3Complete && !step4Complete) ||
+                (step === 5 && step4Complete);
 
               const isClickable = canNavigateToStep(step);
 
