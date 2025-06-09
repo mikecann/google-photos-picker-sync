@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { GoogleAuthProvider } from "./GoogleAuthProvider";
 import { useAuth } from "./GoogleAuthProvider";
 import AuthButton from "./AuthButton";
@@ -35,8 +35,6 @@ function AppContent() {
     startTime: number;
     timeRemaining: number;
   } | null>(null);
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Timer countdown effect for base URL expiration
   useEffect(() => {
@@ -102,8 +100,8 @@ function AppContent() {
       startTime: Date.now(),
       timeRemaining: 3600,
     });
-    // Scroll to step 3 (center it)
-    setTimeout(() => scrollToStep(3), 100);
+    // Navigate to step 3 (directory selection)
+    setCurrentStep(3);
   };
 
   const handleDirectorySelected = (
@@ -115,8 +113,8 @@ function AppContent() {
     // Reset download settings and completion when new directory is selected
     setDownloadSettings(null);
     setDownloadComplete(false);
-    // Scroll to step 4 (settings)
-    setTimeout(() => scrollToStep(4), 100);
+    // Navigate to step 4 (settings)
+    setCurrentStep(4);
   };
 
   const handleDownloadSettingsConfirmed = (
@@ -126,8 +124,8 @@ function AppContent() {
     setDownloadSettings({ settings, filteredItems });
     // Reset download completion when new settings are applied
     setDownloadComplete(false);
-    // Scroll to step 5 (download)
-    setTimeout(() => scrollToStep(5), 100);
+    // Navigate to step 5 (download)
+    setCurrentStep(5);
   };
 
   const handleDownloadSettingsCancel = () => {
@@ -139,38 +137,35 @@ function AppContent() {
     setDownloadComplete(true);
   };
 
-  const scrollToStep = (stepNumber: number) => {
-    if (!scrollContainerRef.current) return;
-
-    const container = scrollContainerRef.current;
-    const containerWidth = container.clientWidth;
-
-    // Calculate responsive step width (same logic as CSS)
-    const maxWidth = Math.min(350, (window.innerWidth - 140) / 1.5);
-    const stepWidth = Math.max(280, maxWidth); // Minimum width for readability
-    const gap = 24;
-    const spacerWidth = stepWidth; // Same as step width for centering
-
-    // Calculate the position of the target step
-    // spacer + (steps before target * (stepWidth + gap)) + half of target step width
-    const stepPosition =
-      spacerWidth + (stepNumber - 1) * (stepWidth + gap) + stepWidth / 2;
-
-    // Center this position in the viewport
-    const scrollPosition = stepPosition - containerWidth / 2;
-
-    container.scrollTo({
-      left: Math.max(0, scrollPosition),
-      behavior: "smooth",
-    });
-  };
-
   // Determine step states
   const step1Complete = isSignedIn;
   const step2Complete = !!selectedPhotos;
   const step3Complete = !!directoryInfo;
   const step4Complete = !!downloadSettings; // Settings step
   const step5Complete = downloadComplete;
+
+  // Determine which step is currently active
+  const getCurrentStep = () => {
+    if (!step1Complete) return 1;
+    if (!step2Complete) return 2;
+    if (!step3Complete) return 3;
+    if (!step4Complete) return 4;
+    if (!step5Complete) return 5;
+    return 5; // If all complete, show final step
+  };
+
+  const [currentStep, setCurrentStep] = useState(getCurrentStep());
+
+  // Update current step when progress changes
+  useEffect(() => {
+    setCurrentStep(getCurrentStep());
+  }, [
+    step1Complete,
+    step2Complete,
+    step3Complete,
+    step4Complete,
+    step5Complete,
+  ]);
 
   // Navigation logic - can always go back, can only go forward to available steps
   const canNavigateToStep = (stepNumber: number) => {
@@ -184,21 +179,16 @@ function AppContent() {
 
   const handleStepClick = (stepNumber: number) => {
     if (canNavigateToStep(stepNumber)) {
-      scrollToStep(stepNumber);
+      setCurrentStep(stepNumber);
     }
   };
 
-  // Auto-scroll to step 2 when signed in (center it)
+  // Auto-navigate to step 2 when signed in
   useEffect(() => {
     if (isSignedIn) {
-      setTimeout(() => scrollToStep(2), 100);
+      setCurrentStep(2);
     }
   }, [isSignedIn]);
-
-  // Center step 1 on initial load
-  useEffect(() => {
-    setTimeout(() => scrollToStep(1), 100);
-  }, []);
 
   return (
     <div
@@ -224,7 +214,7 @@ function AppContent() {
       <div
         style={{
           width: "100%",
-          maxWidth: "600px", // Responsive max width
+          maxWidth: "800px", // Increased max width
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -403,93 +393,39 @@ function AppContent() {
           </div>
         </div>
 
-        {/* Steps container with inner scroll */}
+        {/* Current Step Container */}
         <div
           style={{
-            position: "relative",
-            overflow: "hidden",
             borderRadius: "12px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
             width: "100%",
-            maxWidth: "100%", // Use full available width within parent constraints
+            maxWidth: "100%",
+            backgroundColor: "#f8f9fa",
+            padding: "20px",
+            display: "flex",
+            justifyContent: "center",
           }}
         >
-          <div
-            ref={scrollContainerRef}
-            style={{
-              display: "flex",
-              gap: 16,
-              padding: "20px",
-              overflowX: "auto",
-              scrollBehavior: "smooth",
-              // Hide scrollbar but keep functionality
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-              backgroundColor: "#f8f9fa",
-              // Make the scroll container wide enough for all steps plus centering space
-              width: "calc(100% + 800px)", // Reduced extra space for smaller screens
-              marginLeft: "-400px", // Reduced offset
-            }}
-          >
-            {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "400px", flexShrink: 0 }} />
+          {/* Render current step */}
+          {currentStep === 1 && <AuthButton />}
 
-            {/* Step 1: Authentication */}
-            <div
-              style={{
-                minWidth: "280px",
-                maxWidth: "320px",
-                flexShrink: 0,
-                opacity: 1,
-                transition: "opacity 0.3s ease",
-              }}
-            >
-              <AuthButton />
-            </div>
+          {currentStep === 2 && (
+            <PhotoSelector
+              onPhotosSelected={handlePhotosSelected}
+              disabled={!isSignedIn}
+            />
+          )}
 
-            {/* Step 2: Photo Selection */}
-            <div
-              style={{
-                minWidth: "280px",
-                maxWidth: "320px",
-                flexShrink: 0,
-                opacity: step1Complete ? 1 : 0.4,
-                transition: "opacity 0.3s ease",
-              }}
-            >
-              <PhotoSelector
-                onPhotosSelected={handlePhotosSelected}
-                disabled={!isSignedIn}
-              />
-            </div>
+          {currentStep === 3 && (
+            <DirectorySelector
+              mediaItems={selectedPhotos?.mediaItems || []}
+              onDirectorySelected={handleDirectorySelected}
+              disabled={!selectedPhotos}
+            />
+          )}
 
-            {/* Step 3: Directory Selection */}
-            <div
-              style={{
-                minWidth: "280px",
-                maxWidth: "320px",
-                flexShrink: 0,
-                opacity: step2Complete ? 1 : 0.4,
-                transition: "opacity 0.3s ease",
-              }}
-            >
-              <DirectorySelector
-                mediaItems={selectedPhotos?.mediaItems || []}
-                onDirectorySelected={handleDirectorySelected}
-                disabled={!selectedPhotos}
-              />
-            </div>
-
-            {/* Step 4: Download Settings */}
-            <div
-              style={{
-                minWidth: "280px",
-                maxWidth: "320px",
-                flexShrink: 0,
-                opacity: step3Complete ? 1 : 0.4,
-                transition: "opacity 0.3s ease",
-              }}
-            >
+          {currentStep === 4 && (
+            <>
               {directoryInfo ? (
                 <DownloadSettings
                   mediaItems={directoryInfo.filteredItems}
@@ -520,18 +456,11 @@ function AppContent() {
                   </div>
                 </div>
               )}
-            </div>
+            </>
+          )}
 
-            {/* Step 5: Download */}
-            <div
-              style={{
-                minWidth: "280px",
-                maxWidth: "320px",
-                flexShrink: 0,
-                opacity: step4Complete ? 1 : 0.4,
-                transition: "opacity 0.3s ease",
-              }}
-            >
+          {currentStep === 5 && (
+            <>
               {downloadSettings && directoryInfo ? (
                 <DownloadManager
                   mediaItems={downloadSettings.filteredItems}
@@ -581,72 +510,8 @@ function AppContent() {
                   </button>
                 </div>
               )}
-            </div>
-
-            {/* Invisible spacer for centering */}
-            <div style={{ minWidth: "400px", flexShrink: 0 }} />
-          </div>
-
-          {/* Scroll indicator */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: "8px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              display: "flex",
-              gap: "4px",
-              padding: "8px 12px",
-              backgroundColor: "rgba(0,0,0,0.5)",
-              borderRadius: "12px",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            {[1, 2, 3, 4, 5].map((step) => {
-              const isCurrentStep =
-                (step === 1 && !step1Complete) ||
-                (step === 2 && step1Complete && !step2Complete) ||
-                (step === 3 && step2Complete && !step3Complete) ||
-                (step === 4 && step3Complete && !step4Complete) ||
-                (step === 5 && step4Complete);
-
-              const isClickable = canNavigateToStep(step);
-
-              return (
-                <div
-                  key={step}
-                  onClick={() => handleStepClick(step)}
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: isCurrentStep
-                      ? "#2196f3"
-                      : "rgba(255,255,255,0.4)",
-                    cursor: isClickable ? "pointer" : "not-allowed",
-                    transition: "all 0.2s ease",
-                    opacity: isClickable ? 1 : 0.3,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (isClickable) {
-                      e.currentTarget.style.transform = "scale(1.5)";
-                      e.currentTarget.style.backgroundColor = isCurrentStep
-                        ? "#2196f3"
-                        : "rgba(255,255,255,0.8)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (isClickable) {
-                      e.currentTarget.style.transform = "scale(1)";
-                      e.currentTarget.style.backgroundColor = isCurrentStep
-                        ? "#2196f3"
-                        : "rgba(255,255,255,0.4)";
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
+            </>
+          )}
         </div>
       </div>
     </div>
