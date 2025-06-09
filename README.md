@@ -69,7 +69,6 @@ google-photos-picker-sync/
 │   ├── PickerService.ts   # Google Photos Picker API
 │   └── ...
 ├── server.ts              # Bun server (serves app + API)
-├── sync-photos.ts         # Legacy CLI script (still available)
 └── dist/                  # Built application (auto-generated)
 ```
 
@@ -79,15 +78,10 @@ google-photos-picker-sync/
 - `bun run server` - Start the development server (requires built files)
 - `bun run build` - Build the React application
 - `bun run dev` - Start Vite development server (legacy)
-- `bun run sync-photos` - Run legacy CLI script
 
 ## 🔄 Migration from Legacy
 
-If you have existing session files from the previous architecture, you can still use them:
-
-```bash
-bun run sync-photos.ts your-session-file.json /path/to/target/directory
-```
+The legacy CLI script has been removed. Please use the web interface at `http://localhost:3000` for all photo syncing operations.
 
 ## 🌐 API Endpoints
 

@@ -103,7 +103,11 @@ async function processDownloads(sessionData: SessionData, progressId: string) {
 
     // Download the file
     try {
-      const downloadUrl = `${baseUrl}=d`;
+      // Use correct parameter based on media type
+      // For videos: use =dv (download video), for photos: use =d (download)
+      const isVideo =
+        item.type === "VIDEO" || mediaFile.mimeType.startsWith("video/");
+      const downloadUrl = `${baseUrl}=${isVideo ? "dv" : "d"}`;
       const fileSize = await downloadFile(downloadUrl, targetPath, oauthToken);
 
       progress.downloaded++;
@@ -270,4 +274,3 @@ console.log(
 );
 console.log(`📁 Serving static files from ./dist`);
 console.log(`🔗 Open http://localhost:3000 in your browser to start syncing`);
- 
