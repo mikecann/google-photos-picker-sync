@@ -375,7 +375,7 @@ function AppContent() {
                       }
                     }}
                   >
-                    {isComplete ? "✓" : step === 4 ? "⚙️" : step}
+                    {isComplete ? "✓" : step}
                   </div>
                   {index < 4 && (
                     <div
