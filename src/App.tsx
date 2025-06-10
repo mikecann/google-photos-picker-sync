@@ -31,6 +31,7 @@ function AppContent() {
   } | null>(null);
 
   const [downloadComplete, setDownloadComplete] = useState(false);
+  const [isDownloadActive, setIsDownloadActive] = useState(false);
   const [baseUrlTimer, setBaseUrlTimer] = useState<{
     startTime: number;
     timeRemaining: number;
@@ -137,6 +138,10 @@ function AppContent() {
     setDownloadComplete(true);
   };
 
+  const handleDownloadStatusChange = (isDownloading: boolean) => {
+    setIsDownloadActive(isDownloading);
+  };
+
   // Determine step states
   const step1Complete = isSignedIn;
   const step2Complete = !!selectedPhotos;
@@ -178,9 +183,19 @@ function AppContent() {
   };
 
   const handleStepClick = (stepNumber: number) => {
-    if (canNavigateToStep(stepNumber)) {
-      setCurrentStep(stepNumber);
+    if (!canNavigateToStep(stepNumber)) return;
+
+    // Check if user is trying to navigate away from step 5 while downloading
+    if (currentStep === 5 && stepNumber !== 5 && isDownloadActive) {
+      const confirmed = window.confirm(
+        "⚠️ Download in Progress!\n\nNavigating away from this step will cancel your current download.\n\nAre you sure you want to continue?"
+      );
+      if (!confirmed) {
+        return; // Don't navigate if user cancels
+      }
     }
+
+    setCurrentStep(stepNumber);
   };
 
   // Auto-navigate to step 2 when signed in
@@ -191,330 +206,360 @@ function AppContent() {
   }, [isSignedIn]);
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: `
-          linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%),
-          radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
-          radial-gradient(circle at 80% 80%, rgba(147, 51, 234, 0.02) 0%, transparent 50%),
-          radial-gradient(circle at 40% 70%, rgba(16, 185, 129, 0.02) 0%, transparent 50%)
-        `,
-        padding: "20px",
-        boxSizing: "border-box",
-        maxWidth: "100vw",
-        overflow: "hidden", // Prevent page-level horizontal scroll
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "flex-start",
-        position: "relative",
-      }}
-    >
-      {/* Main container - centered with max width */}
+    <>
+      <style>
+        {`
+          @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+            100% { opacity: 1; transform: scale(1); }
+          }
+        `}
+      </style>
       <div
         style={{
-          width: "100%",
-          maxWidth: "800px", // Increased max width
+          minHeight: "100vh",
+          background: `
+            linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%),
+            radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(147, 51, 234, 0.02) 0%, transparent 50%),
+            radial-gradient(circle at 40% 70%, rgba(16, 185, 129, 0.02) 0%, transparent 50%)
+          `,
+          padding: "20px",
+          boxSizing: "border-box",
+          maxWidth: "100vw",
+          overflow: "hidden", // Prevent page-level horizontal scroll
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
+          justifyContent: "center",
+          alignItems: "flex-start",
+          position: "relative",
         }}
       >
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: 30 }}>
-          <h1 style={{ margin: "0 0 8px 0", color: "#333" }}>
-            Google Photos Picker Sync
-          </h1>
-          <p style={{ margin: 0, color: "#666", fontSize: "16px" }}>
-            Sync your Google Photos to your computer in 5 easy steps
-          </p>
-        </div>
+        {/* Main container - centered with max width */}
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "800px", // Increased max width
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: 30 }}>
+            <h1 style={{ margin: "0 0 8px 0", color: "#333" }}>
+              Google Photos Picker Sync
+            </h1>
+            <p style={{ margin: 0, color: "#666", fontSize: "16px" }}>
+              Sync your Google Photos to your computer in 5 easy steps
+            </p>
+          </div>
 
-        {/* Base URL Timer Banner - Shows for Steps 3 & 4 */}
-        {baseUrlTimer && selectedPhotos && (
+          {/* Base URL Timer Banner - Shows for Steps 3 & 4 */}
+          {baseUrlTimer && selectedPhotos && (
+            <div
+              style={{
+                width: "100%",
+                maxWidth: "600px",
+                marginBottom: 15,
+                padding: "12px 16px",
+                border: `2px solid ${getTimerColor(
+                  baseUrlTimer.timeRemaining
+                )}`,
+                borderRadius: "8px",
+                backgroundColor: "#fff",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "12px",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      fontSize: "14px",
+                      marginBottom: "2px",
+                    }}
+                  >
+                    ⏱️ Google Photos Access Timer
+                  </div>
+                  <div style={{ fontSize: "10px", color: "#666" }}>
+                    Google limits download access to 60 minutes
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    color: getTimerColor(baseUrlTimer.timeRemaining),
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {formatTime(baseUrlTimer.timeRemaining)}
+                </div>
+              </div>
+              {getTimerWarning(baseUrlTimer.timeRemaining) && (
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: getTimerColor(baseUrlTimer.timeRemaining),
+                    fontWeight: "bold",
+                    marginTop: "8px",
+                    padding: "4px 8px",
+                    backgroundColor: `${getTimerColor(
+                      baseUrlTimer.timeRemaining
+                    )}15`,
+                    borderRadius: "4px",
+                    display: "inline-block",
+                  }}
+                >
+                  {getTimerWarning(baseUrlTimer.timeRemaining)}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Progress indicator */}
           <div
             style={{
+              display: "flex",
+              justifyContent: "center",
+              marginBottom: 30,
               width: "100%",
-              maxWidth: "600px",
-              marginBottom: 15,
-              padding: "12px 16px",
-              border: `2px solid ${getTimerColor(baseUrlTimer.timeRemaining)}`,
-              borderRadius: "8px",
-              backgroundColor: "#fff",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-              textAlign: "center",
+              maxWidth: "100%",
             }}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                gap: "12px",
+                gap: "6px",
+                width: "100%",
               }}
             >
-              <div>
-                <div
-                  style={{
-                    fontWeight: "bold",
-                    fontSize: "14px",
-                    marginBottom: "2px",
-                  }}
-                >
-                  ⏱️ Google Photos Access Timer
-                </div>
-                <div style={{ fontSize: "10px", color: "#666" }}>
-                  Google limits download access to 60 minutes
-                </div>
-              </div>
-              <div
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "bold",
-                  color: getTimerColor(baseUrlTimer.timeRemaining),
-                  fontFamily: "monospace",
-                }}
-              >
-                {formatTime(baseUrlTimer.timeRemaining)}
-              </div>
-            </div>
-            {getTimerWarning(baseUrlTimer.timeRemaining) && (
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: getTimerColor(baseUrlTimer.timeRemaining),
-                  fontWeight: "bold",
-                  marginTop: "8px",
-                  padding: "4px 8px",
-                  backgroundColor: `${getTimerColor(
-                    baseUrlTimer.timeRemaining
-                  )}15`,
-                  borderRadius: "4px",
-                  display: "inline-block",
-                }}
-              >
-                {getTimerWarning(baseUrlTimer.timeRemaining)}
-              </div>
-            )}
-          </div>
-        )}
+              {[1, 2, 3, 4, 5].map((step, index) => {
+                const isComplete =
+                  (step === 1 && step1Complete) ||
+                  (step === 2 && step2Complete) ||
+                  (step === 3 && step3Complete) ||
+                  (step === 4 && step4Complete) ||
+                  (step === 5 && step5Complete);
 
-        {/* Progress indicator */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            marginBottom: 30,
-            width: "100%",
-            maxWidth: "100%",
-          }}
-        >
+                const isActive =
+                  (step === 1 && !step1Complete) ||
+                  (step === 2 && step1Complete && !step2Complete) ||
+                  (step === 3 && step2Complete && !step3Complete) ||
+                  (step === 4 && step3Complete && !step4Complete) ||
+                  (step === 5 && step4Complete && !step5Complete);
+
+                const isClickable = canNavigateToStep(step);
+
+                return (
+                  <div
+                    key={step}
+                    style={{ display: "flex", alignItems: "center", flex: 1 }}
+                  >
+                    <div
+                      onClick={() => handleStepClick(step)}
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        backgroundColor: isComplete
+                          ? "#4caf50"
+                          : isActive
+                          ? "#2196f3"
+                          : "#e0e0e0",
+                        color: isComplete || isActive ? "white" : "#999",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: "bold",
+                        fontSize: "14px",
+                        cursor: isClickable ? "pointer" : "not-allowed",
+                        transition: "all 0.2s ease",
+                        transform: isClickable ? "scale(1)" : "scale(1)",
+                        opacity: isClickable ? 1 : 0.6,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (isClickable) {
+                          e.currentTarget.style.transform = "scale(1.1)";
+                          e.currentTarget.style.boxShadow =
+                            "0 2px 8px rgba(0,0,0,0.2)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (isClickable) {
+                          e.currentTarget.style.transform = "scale(1)";
+                          e.currentTarget.style.boxShadow = "none";
+                        }
+                      }}
+                    >
+                      {isComplete ? "✓" : step}
+                      {step === 5 && isDownloadActive && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "-2px",
+                            right: "-2px",
+                            width: "8px",
+                            height: "8px",
+                            backgroundColor: "#ff9800",
+                            borderRadius: "50%",
+                            animation: "pulse 1.5s infinite",
+                          }}
+                        />
+                      )}
+                    </div>
+                    {index < 4 && (
+                      <div
+                        style={{
+                          flex: 1,
+                          height: "2px",
+                          backgroundColor: isComplete ? "#4caf50" : "#e0e0e0",
+                          marginLeft: "8px",
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Current Step Container */}
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
+              borderRadius: "12px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
               width: "100%",
+              maxWidth: "100%",
+              backgroundColor: "#f8f9fa",
+              padding: "20px",
+              display: "flex",
+              justifyContent: "center",
             }}
           >
-            {[1, 2, 3, 4, 5].map((step, index) => {
-              const isComplete =
-                (step === 1 && step1Complete) ||
-                (step === 2 && step2Complete) ||
-                (step === 3 && step3Complete) ||
-                (step === 4 && step4Complete) ||
-                (step === 5 && step5Complete);
+            {/* Render current step */}
+            {currentStep === 1 && <AuthButton />}
 
-              const isActive =
-                (step === 1 && !step1Complete) ||
-                (step === 2 && step1Complete && !step2Complete) ||
-                (step === 3 && step2Complete && !step3Complete) ||
-                (step === 4 && step3Complete && !step4Complete) ||
-                (step === 5 && step4Complete && !step5Complete);
+            {currentStep === 2 && (
+              <PhotoSelector
+                onPhotosSelected={handlePhotosSelected}
+                disabled={!isSignedIn}
+              />
+            )}
 
-              const isClickable = canNavigateToStep(step);
+            {currentStep === 3 && (
+              <DirectorySelector
+                mediaItems={selectedPhotos?.mediaItems || []}
+                onDirectorySelected={handleDirectorySelected}
+                disabled={!selectedPhotos}
+              />
+            )}
 
-              return (
-                <div
-                  key={step}
-                  style={{ display: "flex", alignItems: "center", flex: 1 }}
-                >
+            {currentStep === 4 && (
+              <>
+                {directoryInfo ? (
+                  <DownloadSettings
+                    mediaItems={directoryInfo.filteredItems}
+                    originalMediaItems={selectedPhotos?.mediaItems || []}
+                    existingCount={directoryInfo.existingCount}
+                    onSettingsConfirmed={handleDownloadSettingsConfirmed}
+                    onCancel={handleDownloadSettingsCancel}
+                    disabled={!directoryInfo}
+                  />
+                ) : (
                   <div
-                    onClick={() => handleStepClick(step)}
                     style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      backgroundColor: isComplete
-                        ? "#4caf50"
-                        : isActive
-                        ? "#2196f3"
-                        : "#e0e0e0",
-                      color: isComplete || isActive ? "white" : "#999",
                       display: "flex",
+                      flexDirection: "column",
                       alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: "bold",
-                      fontSize: "14px",
-                      cursor: isClickable ? "pointer" : "not-allowed",
-                      transition: "all 0.2s ease",
-                      transform: isClickable ? "scale(1)" : "scale(1)",
-                      opacity: isClickable ? 1 : 0.6,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isClickable) {
-                        e.currentTarget.style.transform = "scale(1.1)";
-                        e.currentTarget.style.boxShadow =
-                          "0 2px 8px rgba(0,0,0,0.2)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (isClickable) {
-                        e.currentTarget.style.transform = "scale(1)";
-                        e.currentTarget.style.boxShadow = "none";
-                      }
+                      gap: "16px",
+                      padding: "24px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "12px",
+                      backgroundColor: "#fafafa",
                     }}
                   >
-                    {isComplete ? "✓" : step}
+                    <div style={{ textAlign: "center" }}>
+                      <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
+                        ⚙️ Step 4: Download Settings
+                      </h3>
+                      <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
+                        Complete Step 3 to configure download settings
+                      </p>
+                    </div>
                   </div>
-                  {index < 4 && (
-                    <div
+                )}
+              </>
+            )}
+
+            {currentStep === 5 && (
+              <>
+                {downloadSettings && directoryInfo ? (
+                  <DownloadManager
+                    mediaItems={downloadSettings.filteredItems}
+                    downloadSettings={downloadSettings.settings}
+                    oauthToken={selectedPhotos!.oauthToken}
+                    sessionId={selectedPhotos!.sessionId}
+                    selectedDirectory={directoryInfo.directory}
+                    existingCount={directoryInfo.existingCount}
+                    onDownloadComplete={handleDownloadComplete}
+                    onDownloadStatusChange={handleDownloadStatusChange}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "16px",
+                      padding: "24px",
+                      border: "2px solid #e0e0e0",
+                      borderRadius: "12px",
+                      backgroundColor: "#fafafa",
+                    }}
+                  >
+                    <div style={{ textAlign: "center" }}>
+                      <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
+                        🚀 Step 5: Download
+                      </h3>
+                      <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
+                        Complete Step 4 to enable downloads
+                      </p>
+                    </div>
+                    <button
+                      disabled
                       style={{
-                        flex: 1,
-                        height: "2px",
-                        backgroundColor: isComplete ? "#4caf50" : "#e0e0e0",
-                        marginLeft: "8px",
+                        padding: "12px 24px",
+                        fontSize: "16px",
+                        fontWeight: "bold",
+                        color: "white",
+                        backgroundColor: "#ccc",
+                        border: "none",
+                        borderRadius: "8px",
+                        cursor: "not-allowed",
+                        minWidth: "200px",
                       }}
-                    />
-                  )}
-                </div>
-              );
-            })}
+                    >
+                      🚀 Download Files
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
-
-        {/* Current Step Container */}
-        <div
-          style={{
-            borderRadius: "12px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-            width: "100%",
-            maxWidth: "100%",
-            backgroundColor: "#f8f9fa",
-            padding: "20px",
-            display: "flex",
-            justifyContent: "center",
-          }}
-        >
-          {/* Render current step */}
-          {currentStep === 1 && <AuthButton />}
-
-          {currentStep === 2 && (
-            <PhotoSelector
-              onPhotosSelected={handlePhotosSelected}
-              disabled={!isSignedIn}
-            />
-          )}
-
-          {currentStep === 3 && (
-            <DirectorySelector
-              mediaItems={selectedPhotos?.mediaItems || []}
-              onDirectorySelected={handleDirectorySelected}
-              disabled={!selectedPhotos}
-            />
-          )}
-
-          {currentStep === 4 && (
-            <>
-              {directoryInfo ? (
-                <DownloadSettings
-                  mediaItems={directoryInfo.filteredItems}
-                  onSettingsConfirmed={handleDownloadSettingsConfirmed}
-                  onCancel={handleDownloadSettingsCancel}
-                  disabled={!directoryInfo}
-                />
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "16px",
-                    padding: "24px",
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "12px",
-                    backgroundColor: "#fafafa",
-                  }}
-                >
-                  <div style={{ textAlign: "center" }}>
-                    <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
-                      ⚙️ Step 4: Download Settings
-                    </h3>
-                    <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-                      Complete Step 3 to configure download settings
-                    </p>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {currentStep === 5 && (
-            <>
-              {downloadSettings && directoryInfo ? (
-                <DownloadManager
-                  mediaItems={downloadSettings.filteredItems}
-                  downloadSettings={downloadSettings.settings}
-                  oauthToken={selectedPhotos!.oauthToken}
-                  sessionId={selectedPhotos!.sessionId}
-                  selectedDirectory={directoryInfo.directory}
-                  existingCount={directoryInfo.existingCount}
-                  onDownloadComplete={handleDownloadComplete}
-                />
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: "16px",
-                    padding: "24px",
-                    border: "2px solid #e0e0e0",
-                    borderRadius: "12px",
-                    backgroundColor: "#fafafa",
-                  }}
-                >
-                  <div style={{ textAlign: "center" }}>
-                    <h3 style={{ margin: "0 0 8px 0", color: "#333" }}>
-                      🚀 Step 5: Download
-                    </h3>
-                    <p style={{ margin: 0, color: "#666", fontSize: "14px" }}>
-                      Complete Step 4 to enable downloads
-                    </p>
-                  </div>
-                  <button
-                    disabled
-                    style={{
-                      padding: "12px 24px",
-                      fontSize: "16px",
-                      fontWeight: "bold",
-                      color: "white",
-                      backgroundColor: "#ccc",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "not-allowed",
-                      minWidth: "200px",
-                    }}
-                  >
-                    🚀 Download Files
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
       </div>
-    </div>
+    </>
   );
 }
 

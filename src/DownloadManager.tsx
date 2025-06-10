@@ -10,6 +10,7 @@ interface DownloadManagerProps {
   existingCount: number;
   disabled?: boolean;
   onDownloadComplete?: () => void;
+  onDownloadStatusChange?: (isDownloading: boolean) => void;
 }
 
 interface DownloadProgress {
@@ -42,6 +43,7 @@ export default function DownloadManager({
   existingCount,
   disabled,
   onDownloadComplete,
+  onDownloadStatusChange,
 }: DownloadManagerProps) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] =
@@ -49,6 +51,13 @@ export default function DownloadManager({
   const [progressId, setProgressId] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [savedFiles, setSavedFiles] = useState<Set<string>>(new Set());
+
+  // Notify parent when download status changes
+  useEffect(() => {
+    if (onDownloadStatusChange) {
+      onDownloadStatusChange(isDownloading);
+    }
+  }, [isDownloading, onDownloadStatusChange]);
 
   // Calculate total downloaded size from saved files
   const getTotalDownloadedSize = () => {

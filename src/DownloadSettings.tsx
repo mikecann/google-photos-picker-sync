@@ -3,6 +3,8 @@ import type { DownloadSettings, MediaItem } from "./types";
 
 interface DownloadSettingsProps {
   mediaItems: MediaItem[];
+  originalMediaItems: MediaItem[];
+  existingCount: number;
   onSettingsConfirmed: (
     settings: DownloadSettings,
     filteredItems: MediaItem[]
@@ -22,6 +24,8 @@ const defaultSettings: DownloadSettings = {
 
 export default function DownloadSettings({
   mediaItems,
+  originalMediaItems,
+  existingCount,
   onSettingsConfirmed,
   onCancel,
   disabled = false,
@@ -29,9 +33,21 @@ export default function DownloadSettings({
   const [showModal, setShowModal] = useState(false);
   const [settings, setSettings] = useState<DownloadSettings>(defaultSettings);
 
-  // Count media types
-  const photoCount = mediaItems.filter((item) => item.type === "PHOTO").length;
-  const videoCount = mediaItems.filter((item) => item.type === "VIDEO").length;
+  // Count media types from original selection
+  const originalPhotoCount = originalMediaItems.filter(
+    (item) => item.type === "PHOTO"
+  ).length;
+  const originalVideoCount = originalMediaItems.filter(
+    (item) => item.type === "VIDEO"
+  ).length;
+
+  // Count media types available for download (after duplicate removal)
+  const availablePhotoCount = mediaItems.filter(
+    (item) => item.type === "PHOTO"
+  ).length;
+  const availableVideoCount = mediaItems.filter(
+    (item) => item.type === "VIDEO"
+  ).length;
 
   // Filter items based on current settings
   const getFilteredItems = (currentSettings: DownloadSettings) => {
@@ -116,6 +132,39 @@ export default function DownloadSettings({
           </p>
         </div>
 
+        {/* File Summary */}
+        <div
+          style={{
+            padding: "12px 16px",
+            backgroundColor: "#e8f4fd",
+            borderRadius: "8px",
+            fontSize: "14px",
+            textAlign: "center",
+            width: "100%",
+            border: "1px solid #b3d9ff",
+          }}
+        >
+          <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+            📊 File Analysis
+          </div>
+          <div>
+            📂 Total selected: {originalPhotoCount + originalVideoCount} files (
+            {originalPhotoCount} photos, {originalVideoCount} videos)
+          </div>
+          {existingCount > 0 && (
+            <div style={{ fontSize: "12px", color: "#666", marginTop: "2px" }}>
+              ✅ {existingCount} files already exist • 📥{" "}
+              {availablePhotoCount + availableVideoCount} new files to download
+            </div>
+          )}
+          {existingCount === 0 && (
+            <div style={{ fontSize: "12px", color: "#666", marginTop: "2px" }}>
+              📥 All {availablePhotoCount + availableVideoCount} files are new -
+              no duplicates found
+            </div>
+          )}
+        </div>
+
         {/* Quick preview */}
         <div
           style={{
@@ -133,16 +182,25 @@ export default function DownloadSettings({
           <div>
             {settings.includePhotos &&
               settings.includeVideos &&
-              `${filteredItems.length} items (${photoCount} photos, ${videoCount} videos)`}
+              `${filteredItems.length} items to download`}
             {settings.includePhotos &&
               !settings.includeVideos &&
-              `${photoCount} photos only`}
+              `${
+                filteredItems.filter((i) => i.type === "PHOTO").length
+              } photos to download`}
             {!settings.includePhotos &&
               settings.includeVideos &&
-              `${videoCount} videos only`}
+              `${
+                filteredItems.filter((i) => i.type === "VIDEO").length
+              } videos to download`}
             {!settings.includePhotos &&
               !settings.includeVideos &&
               "No items selected"}
+          </div>
+          <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
+            Originally selected: {originalPhotoCount} photos,{" "}
+            {originalVideoCount} videos
+            {existingCount > 0 && ` • ${existingCount} duplicates found`}
           </div>
           {settings.imageQuality !== "original" && settings.includePhotos && (
             <div style={{ fontSize: "12px", color: "#666", marginTop: "2px" }}>
@@ -263,7 +321,10 @@ export default function DownloadSettings({
                     }
                     style={{ transform: "scale(1.2)" }}
                   />
-                  <span>📸 Photos ({photoCount})</span>
+                  <span>
+                    📸 Photos ({originalPhotoCount} selected,{" "}
+                    {availablePhotoCount} new)
+                  </span>
                 </label>
                 <label
                   style={{
@@ -281,7 +342,10 @@ export default function DownloadSettings({
                     }
                     style={{ transform: "scale(1.2)" }}
                   />
-                  <span>🎥 Videos ({videoCount})</span>
+                  <span>
+                    🎥 Videos ({originalVideoCount} selected,{" "}
+                    {availableVideoCount} new)
+                  </span>
                 </label>
               </div>
             </div>
