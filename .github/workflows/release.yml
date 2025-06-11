@@ -1,0 +1,195 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            asset_name: google-photos-sync-windows.zip
+            executable_name: google-photos-sync.exe
+          - os: ubuntu-latest
+            asset_name: google-photos-sync-linux.zip
+            executable_name: google-photos-sync
+          - os: macos-latest
+            asset_name: google-photos-sync-macos.zip
+            executable_name: google-photos-sync
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build web app
+        run: bun run build
+
+      - name: Build standalone executable
+        run: bun run build:standalone
+
+      - name: Create release directory
+        run: mkdir release-package
+
+      - name: Copy executable (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          copy google-photos-sync.exe release-package/
+        shell: cmd
+
+      - name: Copy executable (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cp google-photos-sync release-package/
+
+      - name: Create README for release
+        run: |
+          echo "# Google Photos Picker Sync" > release-package/README.md
+          echo "" >> release-package/README.md
+          echo "## Quick Start" >> release-package/README.md
+          echo "" >> release-package/README.md
+          echo "1. Extract this zip file to a folder of your choice" >> release-package/README.md
+          echo "2. Run the executable:" >> release-package/README.md
+          echo "   - Windows: Double-click \`google-photos-sync.exe\`" >> release-package/README.md
+          echo "   - Mac/Linux: Open terminal and run \`./google-photos-sync\`" >> release-package/README.md
+          echo "3. Open your browser and go to: http://localhost:3000" >> release-package/README.md
+          echo "4. Follow the steps to sync your Google Photos!" >> release-package/README.md
+          echo "" >> release-package/README.md
+          echo "## Requirements" >> release-package/README.md
+          echo "" >> release-package/README.md
+          echo "- No additional software needed - this is a standalone executable" >> release-package/README.md
+          echo "- Internet connection for Google Photos access" >> release-package/README.md
+          echo "- Modern web browser (Chrome, Firefox, Safari, Edge)" >> release-package/README.md
+          echo "" >> release-package/README.md
+          echo "## Support" >> release-package/README.md
+          echo "" >> release-package/README.md
+          echo "For issues and updates, visit: https://github.com/${{ github.repository }}" >> release-package/README.md
+
+      - name: Create license file
+        run: |
+          echo "MIT License" > release-package/LICENSE.txt
+          echo "" >> release-package/LICENSE.txt
+          echo "Permission is hereby granted, free of charge, to any person obtaining a copy" >> release-package/LICENSE.txt
+          echo "of this software and associated documentation files (the \"Software\"), to deal" >> release-package/LICENSE.txt
+          echo "in the Software without restriction, including without limitation the rights" >> release-package/LICENSE.txt
+          echo "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell" >> release-package/LICENSE.txt
+          echo "copies of the Software, and to permit persons to whom the Software is" >> release-package/LICENSE.txt
+          echo "furnished to do so, subject to the following conditions:" >> release-package/LICENSE.txt
+          echo "" >> release-package/LICENSE.txt
+          echo "The above copyright notice and this permission notice shall be included in all" >> release-package/LICENSE.txt
+          echo "copies or substantial portions of the Software." >> release-package/LICENSE.txt
+
+      - name: Create zip package (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          Compress-Archive -Path release-package/* -DestinationPath ${{ matrix.asset_name }}
+        shell: pwsh
+
+      - name: Create zip package (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          cd release-package && zip -r ../${{ matrix.asset_name }} .
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}
+
+  create-release:
+    needs: build-and-release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: Google Photos Sync ${{ github.ref_name }}
+          body: |
+            ## 🚀 Google Photos Picker Sync ${{ github.ref_name }}
+
+            A seamless way to sync photos from Google Photos to your local drive.
+
+            ### 📦 Downloads
+
+            Choose the version for your operating system:
+
+            - **Windows**: Download `google-photos-sync-windows.zip`
+            - **macOS**: Download `google-photos-sync-macos.zip` 
+            - **Linux**: Download `google-photos-sync-linux.zip`
+
+            ### 🏃 Quick Start
+
+            1. Download the zip file for your OS
+            2. Extract it to a folder
+            3. Run the executable
+            4. Open http://localhost:3000 in your browser
+            5. Start syncing your photos!
+
+            ### ✨ Features
+
+            - Google OAuth Authentication
+            - Interactive Photo Picker
+            - Smart Duplicate Detection
+            - Custom Download Settings
+            - Real-time Progress Tracking
+            - Video Support (full downloads, not just thumbnails!)
+
+            ### 🔧 Changes in this release
+
+            See the commits since the last release for detailed changes.
+          draft: false
+          prerelease: false
+
+      - name: Upload Windows Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./google-photos-sync-windows.zip/google-photos-sync-windows.zip
+          asset_name: google-photos-sync-windows.zip
+          asset_content_type: application/zip
+
+      - name: Upload macOS Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./google-photos-sync-macos.zip/google-photos-sync-macos.zip
+          asset_name: google-photos-sync-macos.zip
+          asset_content_type: application/zip
+
+      - name: Upload Linux Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./google-photos-sync-linux.zip/google-photos-sync-linux.zip
+          asset_name: google-photos-sync-linux.zip
+          asset_content_type: application/zip

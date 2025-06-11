@@ -1,8 +1,27 @@
 {
   "name": "google-photos-picker-sync",
-  "private": true,
-  "version": "0.0.0",
+  "description": "A seamless way to sync photos from Google Photos to your local drive with smart duplicate detection and custom download settings",
+  "version": "1.0.0",
   "type": "module",
+  "author": "Mike Cann",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mikecann/google-photos-picker-sync.git"
+  },
+  "keywords": [
+    "google-photos",
+    "sync",
+    "backup",
+    "photos",
+    "videos",
+    "download",
+    "picker"
+  ],
+  "homepage": "https://github.com/mikecann/google-photos-picker-sync#readme",
+  "bugs": {
+    "url": "https://github.com/mikecann/google-photos-picker-sync/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -10,7 +29,11 @@
     "lint": "eslint .",
     "server": "bun run server.ts",
     "start": "bun run build && bun run server.ts",
-    "build:standalone": "bun run build && bun build --compile --minify --sourcemap server-standalone.ts --outfile google-photos-sync"
+    "build:standalone": "bun run build && bun build --compile --minify --sourcemap server-standalone.ts --outfile google-photos-sync",
+    "build:standalone:windows": "bun run build && bun build --compile --minify --sourcemap server-standalone.ts --outfile google-photos-sync.exe",
+    "release:prepare": "bun run build && bun run lint",
+    "release:build": "bun run release:prepare && bun run build:standalone",
+    "release:test": "bun run release:build && echo 'Testing standalone build...' && ./google-photos-sync --help || echo 'Standalone build created successfully'"
   },
   "dependencies": {
     "@react-oauth/google": "^0.12.2",

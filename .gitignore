@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 
 .env
+
+# Release artifacts
+google-photos-sync
+google-photos-sync.exe
+release-package/
+*.zip
+release/
