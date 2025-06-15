@@ -5,6 +5,31 @@ import { join } from "path";
 // file function is available as Bun.file()
 import { tmpdir } from "os";
 
+// Environment check function
+function checkEnvironmentVariables() {
+  const requiredVar = 'VITE_GOOGLE_CLIENT_ID';
+  const value = process.env[requiredVar];
+  
+  if (!value || value.trim() === '') {
+    console.error('❌ ERROR: Missing required environment variable');
+    console.error('');
+    console.error(`The ${requiredVar} environment variable is required to run this server.`);
+    console.error('');
+    console.error('Steps to fix:');
+    console.error('1. Create a .env file in the same directory as this executable');
+    console.error(`2. Add this line: ${requiredVar}=your_google_client_id_here`);
+    console.error('3. Get your Client ID from Google Cloud Console: https://console.cloud.google.com/');
+    console.error('4. Make sure to restart the server after adding the .env file');
+    console.error('');
+    console.error('Note: For standalone executables, you can also set the environment variable');
+    console.error('directly in your system or pass it when running the executable.');
+    console.error('');
+    process.exit(1);
+  }
+  
+  console.log(`✅ Environment check passed: ${requiredVar} is configured`);
+}
+
 // Import static files to embed them in the executable
 import indexHtml from "./dist/index.html" with { type: "file" };
 import viteSvg from "./dist/vite.svg" with { type: "file" };
@@ -367,6 +392,9 @@ const server = Bun.serve({
     });
   },
 });
+
+// Check environment variables before starting
+checkEnvironmentVariables();
 
 console.log(
   `🚀 Google Photos Sync server running at http://localhost:${server.port}`
