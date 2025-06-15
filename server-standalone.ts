@@ -11,18 +11,34 @@ function checkEnvironmentVariables() {
   const value = process.env[requiredVar];
   
   if (!value || value.trim() === '') {
-    console.error('❌ ERROR: Missing required environment variable');
     console.error('');
-    console.error(`The ${requiredVar} environment variable is required to run this server.`);
+    console.error('🚨 SETUP REQUIRED: Missing Google Photos API Configuration');
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('');
-    console.error('Steps to fix:');
-    console.error('1. Create a .env file in the same directory as this executable');
-    console.error(`2. Add this line: ${requiredVar}=your_google_client_id_here`);
-    console.error('3. Get your Client ID from Google Cloud Console: https://console.cloud.google.com/');
-    console.error('4. Make sure to restart the server after adding the .env file');
+    console.error(`❌ The ${requiredVar} environment variable is required to run this application.`);
     console.error('');
-    console.error('Note: For standalone executables, you can also set the environment variable');
-    console.error('directly in your system or pass it when running the executable.');
+    console.error('📖 PLEASE READ THE README FILE FOR COMPLETE SETUP INSTRUCTIONS:');
+    console.error('   https://github.com/mikecann/google-photos-picker-sync#google-cloud-console-setup');
+    console.error('');
+    console.error('📋 Quick Setup Summary:');
+    console.error('   1. Go to Google Cloud Console (https://console.cloud.google.com/)');
+    console.error('   2. Create a new project or select existing one');
+    console.error('   3. Enable "Google Photos Picker API"');
+    console.error('   4. Set up OAuth consent screen');
+    console.error('   5. Create OAuth 2.0 Client ID credentials');
+    console.error('   6. Copy your Client ID');
+    console.error('   7. Create a .env file with: VITE_GOOGLE_CLIENT_ID=your_client_id_here');
+    console.error('');
+    console.error('⚠️  IMPORTANT: The README contains detailed step-by-step instructions');
+    console.error('   with screenshots and troubleshooting to avoid common mistakes.');
+    console.error('');
+    console.error('💡 For standalone executable, you can either:');
+    console.error('   • Create .env file in the same directory as this executable, OR');
+    console.error('   • Set the environment variable in your system');
+    console.error('');
+    console.error('🔄 After setup, restart this application.');
+    console.error('');
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.error('');
     process.exit(1);
   }
