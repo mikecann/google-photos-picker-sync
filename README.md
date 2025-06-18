@@ -2,21 +2,6 @@
 
 A seamless way to sync photos from Google Photos to your local drive using the Google Photos Picker API.
 
-## 🎯 Features
-
-- **Google OAuth Authentication** - Secure access to your Google Photos
-- **Interactive Photo Picker** - Visual selection of photos using Google's picker
-- **Real-time Progress Tracking** - Live updates during download
-- **Local Server Architecture** - Bypasses CORS restrictions for seamless downloads
-- **Smart Duplicate Detection** - Skips files that already exist
-- **Batch Processing** - Efficiently downloads multiple files
-
-## 🚀 Quick Start
-
-### Prerequisites
-- [Bun](https://bun.sh/) installed on your system
-- **Google Photos API credentials** (see setup instructions below)
-
 ### Setup
 
 1. **⚠️ FIRST: Set up Google Photos API access**
@@ -27,7 +12,7 @@ A seamless way to sync photos from Google Photos to your local drive using the G
    ```bash
    bun install
    ```
-
+   
 3. **Build the application:**
    ```bash
    bun run build
@@ -134,39 +119,3 @@ VITE_GOOGLE_CLIENT_ID=123456789-abcdefghijklmnopqrstuvwxyz.apps.googleuserconten
 - Your `.env` file is already in `.gitignore` and won't be committed to Git
 - The Client ID is not secret (it's visible in the browser), but keep your project secure
 - For production use, you'll need to verify your app with Google (but not needed for personal use)
-
-**For personal use only, you can skip app publishing and use the app as a "test" app.**
-
-## 🏗️ How It Works
-
-### New Architecture (Current)
-1. **Bun Server** hosts the web application and provides API endpoints
-2. **Browser** handles Google OAuth and photo selection
-3. **Local API** receives session data and downloads files directly
-4. **Real-time Progress** via polling the server for download status
-
-### Benefits over Previous Architecture
-- ✅ **Seamless Experience** - No manual file downloads or script execution
-- ✅ **Real-time Progress** - Live updates during download process
-- ✅ **CORS-free Downloads** - Server-side requests bypass browser limitations
-- ✅ **Error Handling** - Better error reporting and recovery
-
-## 🔧 Available Scripts
-
-- `bun run start` - Build and start the production server
-- `bun run server` - Start the development server (requires built files)
-- `bun run build` - Build the React application
-- `bun run dev` - Start Vite development server (legacy)
-
-## 🔄 Migration from Legacy
-
-The legacy CLI script has been removed. Please use the web interface at `http://localhost:3000` for all photo syncing operations.
-
-## 🌐 API Endpoints
-
-- `POST /api/download` - Start download process with session data
-- `GET /api/progress?id={progressId}` - Get download progress
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
